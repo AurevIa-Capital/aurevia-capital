@@ -30,7 +30,7 @@ def load_data():
     if os.path.exists(summary_path):
         try:
             summary_df = pd.read_csv(summary_path)
-            st.success("Successfully loaded summary data")
+            # st.success("Successfully loaded summary data")
         except Exception as e:
             st.error(f"Error loading summary data: {e}")
     else:
@@ -42,7 +42,7 @@ def load_data():
         try:
             featured_df = pd.read_csv(featured_data_path)
             featured_df["date"] = pd.to_datetime(featured_df["date"])
-            st.success("Successfully loaded featured data")
+            # st.success("Successfully loaded featured data")
         except Exception as e:
             st.error(f"Error loading featured data: {e}")
     else:
@@ -78,7 +78,7 @@ def load_data():
                     forecast = pd.read_csv(forecast_path)
                     forecast["date"] = pd.to_datetime(forecast["date"])
                     forecast.set_index("date", inplace=True)
-                    st.success(f"Loaded forecast for {watch_name}")
+                    # st.success(f"Loaded forecast for {watch_name}")
                 except Exception as e:
                     st.error(f"Error loading forecast for {watch_name}: {e}")
                     forecast = None

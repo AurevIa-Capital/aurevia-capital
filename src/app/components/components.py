@@ -45,7 +45,6 @@ def create_metric_card(title, value, change=None, prefix=None):
             f"""
         <div class="card">
             <h3>{title}</h3>
-            <p class="metric-value">{formatted_value}</p>
             <p class="{trend_class}">{formatted_change} {trend_arrow}</p>
         </div>
         """,
@@ -63,12 +62,14 @@ def create_metric_card(title, value, change=None, prefix=None):
         )
 
 
-def create_watch_card(watch_name, watch_data, image_url, summary_data=None):
+def create_watch_card(
+    watch_name, watch_data, image_url, summary_data=None, show_model=True
+):
     """Create a card displaying a watch's info."""
     # Format watch name
     display_name = format_watch_name(watch_name)
 
-    # Extract data
+    # Extract data from watch_data
     current_price = (
         watch_data["historical"]["price(SGD)"].iloc[-1]
         if "price(SGD)" in watch_data["historical"].columns
@@ -80,18 +81,57 @@ def create_watch_card(watch_name, watch_data, image_url, summary_data=None):
         else None
     )
 
-    # Calculate percentage change
-    if current_price is not None and forecast_30d is not None and current_price != 0:
-        price_change = ((forecast_30d / current_price) - 1) * 100
-    else:
-        price_change = None
+    # Try to get 7-day forecast from watch_data
+    try:
+        forecast_7d = (
+            watch_data["forecast"]["forecasted_price"].iloc[6]
+            if len(watch_data["forecast"]) > 6
+            else None
+        )
+    except (KeyError, IndexError):
+        forecast_7d = None
 
-    # Get model info if available
-    best_model = "N/A"
+    # If summary_data is provided, use it as the source of truth for forecasts
     if summary_data is not None:
         model_row = summary_data[summary_data["Watch Model"] == watch_name]
         if not model_row.empty:
-            best_model = model_row.iloc[0]["Best Model"]
+            # Get best model info if needed
+            if show_model:
+                best_model = model_row.iloc[0]["Best Model"]
+            else:
+                best_model = None
+
+            # Get forecast values from summary data (more accurate)
+            if "Forecasted Price (7 days)" in model_row.columns:
+                forecast_7d = model_row.iloc[0]["Forecasted Price (7 days)"]
+
+            if "Forecasted Price (30 days)" in model_row.columns:
+                forecast_30d = model_row.iloc[0]["Forecasted Price (30 days)"]
+
+            # Get price change from summary data
+            if "Price Change %" in model_row.columns:
+                price_change = model_row.iloc[0]["Price Change %"]
+            else:
+                # Calculate percentage change if not in summary data
+                if (
+                    current_price is not None
+                    and forecast_30d is not None
+                    and current_price != 0
+                ):
+                    price_change = ((forecast_30d / current_price) - 1) * 100
+                else:
+                    price_change = None
+    else:
+        # If no summary data, calculate price change
+        if (
+            current_price is not None
+            and forecast_30d is not None
+            and current_price != 0
+        ):
+            price_change = ((forecast_30d / current_price) - 1) * 100
+        else:
+            price_change = None
+        best_model = None
 
     # Create card
     col1, col2 = st.columns([1, 3])
@@ -122,24 +162,51 @@ def create_watch_card(watch_name, watch_data, image_url, summary_data=None):
     with col2:
         trend_class = get_trend_color(price_change)
 
-        st.markdown(
-            f"""
+        # Calculate 7-day price change if 7-day forecast and current price are available
+        if current_price is not None and forecast_7d is not None and current_price != 0:
+            price_change_7d = ((forecast_7d / current_price) - 1) * 100
+            trend_class_7d = get_trend_color(price_change_7d)
+            change_7d_html = f'<span class="{trend_class_7d}">{format_percent(price_change_7d)} {get_trend_arrow(price_change_7d)}</span>'
+        else:
+            change_7d_html = "N/A"
+
+            # Calculate 7-day price change if 7-day forecast and current price are available
+        if (
+            current_price is not None
+            and forecast_30d is not None
+            and current_price != 0
+        ):
+            price_change_30d = ((forecast_30d / current_price) - 1) * 100
+            trend_class_30d = get_trend_color(price_change_30d)
+            change_30d_html = f'<span class="{trend_class_30d}">{format_percent(price_change_30d)} {get_trend_arrow(price_change_30d)}</span>'
+        else:
+            change_30d_html = "N/A"
+
+        # Create HTML for card content
+        html_content = f"""
         <div class="card">
             <h3>{display_name}</h3>
             <div style="display: flex; justify-content: space-between;">
                 <div>
                     <p><strong>Current Price:</strong> {format_currency(current_price)}</p>
-                    <p><strong>30-Day Forecast:</strong> {format_currency(forecast_30d)}</p>
+                    <p><strong>7-Day Forecast:</strong> {format_currency(forecast_7d)} ({change_7d_html})</p>
+                    <p><strong>30-Day Forecast:</strong> {format_currency(forecast_30d)} ({change_30d_html})</p>
                 </div>
                 <div>
-                    <p><strong>Best Model:</strong> {best_model}</p>
-                    <p><strong>Expected Change:</strong> <span class="{trend_class}">{format_percent(price_change)} {get_trend_arrow(price_change)}</span></p>
-                </div>
-            </div>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
+        """
+
+        # # Only add best model if show_model is True
+        # if show_model and best_model:
+        #     html_content += f"<p><strong>Best Model:</strong> {best_model}</p>"
+
+        # html_content += f"""
+        #             <p><strong>30-Day Change:</strong> <span class="{trend_class}">{format_percent(price_change)} {get_trend_arrow(price_change)}</span></p>
+        #         </div>
+        #     </div>
+        # </div>
+        # """
+
+        st.markdown(html_content, unsafe_allow_html=True)
 
 
 def create_market_trend_chart(watch_data):
