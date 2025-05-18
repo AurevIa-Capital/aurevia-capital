@@ -29,7 +29,6 @@ def ensure_output_dir(output_dir="data/output/"):
         os.makedirs(output_dir)
 
 
-# 1. DATA LOADING FUNCTION
 def load_watch_data(file_paths):
     """
     Load watch data from CSV files and return a dictionary of dataframes
@@ -67,7 +66,6 @@ def load_watch_data(file_paths):
     return watch_data
 
 
-# 2. DATA PREPROCESSING FUNCTION
 def preprocess_data(watch_data_dict, freq="D"):
     """
     Preprocess watch data by resampling to daily frequency and filling missing values
@@ -102,7 +100,6 @@ def preprocess_data(watch_data_dict, freq="D"):
     return preprocessed_data
 
 
-# 3. EXPLORATORY DATA ANALYSIS FUNCTION - MODIFIED
 def perform_eda(watch_data_dict, output_dir="data/output/"):
     """
     Perform exploratory data analysis on watch data and save plots
@@ -209,7 +206,6 @@ def perform_eda(watch_data_dict, output_dir="data/output/"):
                 print("Could not perform seasonal decomposition - may need more data")
 
 
-# 4. FEATURE ENGINEERING FUNCTION
 def engineer_features(watch_data_dict):
     """
     Engineer features for time series forecasting
@@ -276,7 +272,6 @@ def engineer_features(watch_data_dict):
     return featured_data
 
 
-# 8. MAIN FUNCTION - MODIFIED
 def main():
     """
     Main function to run the time series forecasting pipeline
@@ -292,19 +287,15 @@ def main():
         "data/watches/30921-omega-speedmaster-professional-moonwatch-310-30-42-50-01-002.csv",
     ]
 
-    # 1. Load data
     print("\n--- Loading Data ---")
     watch_data = load_watch_data(file_paths)
 
-    # 2. Preprocess data
     print("\n--- Preprocessing Data ---")
     preprocessed_data = preprocess_data(watch_data)
 
-    # 3. Exploratory data analysis
     print("\n--- Performing Exploratory Data Analysis ---")
     perform_eda(preprocessed_data, output_dir)
 
-    # 4. Feature engineering
     print("\n--- Engineering Features ---")
     featured_data = engineer_features(preprocessed_data)
 
