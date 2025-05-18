@@ -5,75 +5,13 @@ conf/local/**
 # Ignore potentially sensitive credentials files
 conf/**/*credentials*
 
-# Ignore all checkpoint directories
-**/checkpoint-*
-
-# Ignore temporary buffer files created by unsloth during fine-tuning
-**/_unsloth_*
-**/unsloth*
-
-# Exclude fine-tuning artifacts and compiled llama.cpp
-**/model
-**/llama.cpp
-
-
-# Ignore folders containing the fine-tuned LLaMA model artifacts
-**/finetuned_*
-
-
-# Ignore the processed dataset files generated during fine-tuning experiments
-**/processed_llama_dataset
-
-
 # Ignore everything in the following folders
 data/**
-data/results/*
-data-v2/**
-data/open_llm_fine_tuning/**
-logs/**
-models/**
-aisg-context/k8s/pvc/**
-aisg-context/k8s/secrets/**
-**/token_debug_logs/**
-**/token_logs/**
-MagicMock 
-
-# Ignore everything in any multi_turn_dialogues folder
-src/visier/open_llm_fine_tuning/multi_turn_dialogues/
-
-# Ignore everything under this fine-tuning folder
-src/visier/open_llm_fine_tuning/fine_tuning/
-
+src/deprecated/**
 
 # Except their sub-folders
-# !data/processed/
-# !data/processed/**
-# !data/output/
-# !data/output/**
-!data/open_llm_fine_tuning/
-!data/corrections/
-!data/corrections/**
-!data/prompt_templates/
-!data/prompt_templates/**
-!data/sample/
-!data/sample/**/*
-!logs/**/
-!models/**/
-!aisg-context/k8s/pvc/**/
-!aisg-context/k8s/secrets/**/
-!data/sprint6/
-!data/sprint6/** 
-
-# But keep these specific files
-!data/open_llm_fine_tuning/Non-golden dataset_instruct_*.jsonl
-!data/open_llm_fine_tuning/cleaned_processed_dataset*.jsonl
-!data/open_llm_fine_tuning/queries*.txt
-!data/open_llm_fine_tuning/visier_*.csv
-!data/open_llm_fine_tuning/.gitkeep
-!data/open_llm_fine_tuning/processed_dataset*.jsonl
-!data/open_llm_fine_tuning/expanded_output*.csv
-
-
+!data/watches/
+!data/watches/**
 
 # Keep all .gitkeep files
 !.gitkeep
@@ -226,9 +164,4 @@ ENV/
 env.bak/
 venv.bak/
 
-# mypy
-.mypy_cache/
-
-# pdm
-.pdm-python
 ####################
