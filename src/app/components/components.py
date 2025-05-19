@@ -20,7 +20,7 @@ def create_header():
 
 def create_sidebar_navigation():
     """Create sidebar navigation."""
-    st.sidebar.image("https://www.svgrepo.com/show/491067/watch.svg", width=50)
+    # st.sidebar.image("https://www.svgrepo.com/show/491067/watch.svg", width=50)
     st.sidebar.title("Navigation")
     page = st.sidebar.radio(
         "Select Page",
@@ -95,43 +95,12 @@ def create_watch_card(
     if summary_data is not None:
         model_row = summary_data[summary_data["Watch Model"] == watch_name]
         if not model_row.empty:
-            # Get best model info if needed
-            if show_model:
-                best_model = model_row.iloc[0]["Best Model"]
-            else:
-                best_model = None
-
             # Get forecast values from summary data (more accurate)
             if "Forecasted Price (7 days)" in model_row.columns:
                 forecast_7d = model_row.iloc[0]["Forecasted Price (7 days)"]
 
             if "Forecasted Price (30 days)" in model_row.columns:
                 forecast_30d = model_row.iloc[0]["Forecasted Price (30 days)"]
-
-            # Get price change from summary data
-            if "Price Change %" in model_row.columns:
-                price_change = model_row.iloc[0]["Price Change %"]
-            else:
-                # Calculate percentage change if not in summary data
-                if (
-                    current_price is not None
-                    and forecast_30d is not None
-                    and current_price != 0
-                ):
-                    price_change = ((forecast_30d / current_price) - 1) * 100
-                else:
-                    price_change = None
-    else:
-        # If no summary data, calculate price change
-        if (
-            current_price is not None
-            and forecast_30d is not None
-            and current_price != 0
-        ):
-            price_change = ((forecast_30d / current_price) - 1) * 100
-        else:
-            price_change = None
-        best_model = None
 
     # Create card
     col1, col2 = st.columns([1, 3])
@@ -160,8 +129,6 @@ def create_watch_card(
                 st.image("https://www.svgrepo.com/show/491067/watch.svg", width=150)
 
     with col2:
-        trend_class = get_trend_color(price_change)
-
         # Calculate 7-day price change if 7-day forecast and current price are available
         if current_price is not None and forecast_7d is not None and current_price != 0:
             price_change_7d = ((forecast_7d / current_price) - 1) * 100
@@ -241,13 +208,36 @@ def create_market_trend_chart(watch_data):
                 )
             )
 
+    # First, update all the legend names to shorter versions
+    fig.data[0].name = "Rolex Sub (Historical)"
+    fig.data[1].name = "Rolex Sub (Forecast)"
+    fig.data[2].name = "Omega Speedmaster (Historical)"
+    fig.data[3].name = "Omega Speedmaster (Forecast)"
+    fig.data[4].name = "Tudor Black Bay (Historical)"
+    fig.data[5].name = "Tudor Black Bay (Forecast)"
+
+    fig.data[0].legendgroup = "Rolex"
+    fig.data[1].legendgroup = "Rolex"
+    fig.data[2].legendgroup = "Omega"
+    fig.data[3].legendgroup = "Omega"
+    fig.data[4].legendgroup = "Tudor"
+    fig.data[5].legendgroup = "Tudor"
+
+    # Then, update the layout
     fig.update_layout(
         title="Historical Prices and Forecasts",
         xaxis_title="Date",
         yaxis_title="Price (SGD)",
         legend_title="Watch Models",
         template="plotly_white",
-        height=500,
+        legend=dict(
+            orientation="h",  # Horizontal legend
+            yanchor="bottom",
+            y=-0.5,  # Position below the plot
+            xanchor="center",
+            x=0.4,
+            traceorder="grouped",  # This ensures legend groups stay together
+        ),
     )
 
     return fig

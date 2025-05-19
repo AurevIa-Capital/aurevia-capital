@@ -6,6 +6,12 @@ def load_css():
     st.markdown(
         """
     <style>
+        /* Hide the unwanted "0" at the top left */
+        .stNumberInput > div:first-child, .stMarkdown > div:first-child > p:first-child:empty + p:only-of-type {
+            display: none;
+        }
+        
+        /* Original styles */
         .main-header {
             font-size: 2.5rem;
             color: #1E3A8A;

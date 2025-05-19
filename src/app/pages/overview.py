@@ -66,6 +66,20 @@ def show_overview_page(summary_df, watch_data, watch_images):
     else:
         st.warning("Insufficient data to calculate market statistics")
 
+    # Market trend chart
+    st.markdown(
+        "<h3 class='sub-header'>Market Trend Visualization</h3>", unsafe_allow_html=True
+    )
+
+    if watch_data:
+        try:
+            fig = create_market_trend_chart(watch_data)
+            st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error creating market trend chart: {e}")
+    else:
+        st.warning("No watch data available for visualization")
+
     # Watch summary cards
     st.markdown(
         "<h3 class='sub-header'>Watch Forecast Summary</h3>", unsafe_allow_html=True
@@ -89,17 +103,3 @@ def show_overview_page(summary_df, watch_data, watch_images):
                 watch_name, "https://www.svgrepo.com/show/491067/watch.svg"
             )
             create_watch_card(watch_name, watch_info, image_url)
-
-    # Market trend chart
-    st.markdown(
-        "<h3 class='sub-header'>Market Trend Visualization</h3>", unsafe_allow_html=True
-    )
-
-    if watch_data:
-        try:
-            fig = create_market_trend_chart(watch_data)
-            st.plotly_chart(fig, use_container_width=True)
-        except Exception as e:
-            st.error(f"Error creating market trend chart: {e}")
-    else:
-        st.warning("No watch data available for visualization")
