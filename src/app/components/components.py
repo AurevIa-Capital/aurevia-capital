@@ -1,3 +1,4 @@
+import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -176,67 +177,137 @@ def create_watch_card(
         st.markdown(html_content, unsafe_allow_html=True)
 
 
-def create_market_trend_chart(watch_data):
-    """Create a market trend chart showing all watches."""
+def create_market_trend_chart(watch_data, show_average_only=False):
+    """
+    Create a market trend chart.
+
+    Parameters:
+    -----------
+    watch_data : dict
+        Dictionary of watch data
+    show_average_only : bool
+        If True, only show the average of all watches, otherwise show individual watches
+    """
     fig = go.Figure()
 
-    for watch_name, data in watch_data.items():
-        # Get display name
-        display_name = format_watch_name(watch_name)
+    if show_average_only:
+        # Create empty DataFrames to store all historical and forecast data
+        all_historical = pd.DataFrame()
+        all_forecast = pd.DataFrame()
 
-        # Historical data
-        if "price(SGD)" in data["historical"].columns:
-            fig.add_trace(
-                go.Scatter(
-                    x=data["historical"].index,
-                    y=data["historical"]["price(SGD)"],
-                    mode="lines",
-                    name=f"{display_name} (Historical)",
-                    line=dict(width=2),
-                )
+        # Collect all data from all watches
+        for watch_name, data in watch_data.items():
+            # Historical data
+            if "price(SGD)" in data["historical"].columns:
+                # Add price column renamed with watch name to identify it
+                historical_df = pd.DataFrame(index=data["historical"].index)
+                historical_df[watch_name] = data["historical"]["price(SGD)"]
+                all_historical = pd.concat([all_historical, historical_df], axis=1)
+
+            # Forecast data
+            if "forecasted_price" in data["forecast"].columns:
+                # Add forecasted price column renamed with watch name
+                forecast_df = pd.DataFrame(index=data["forecast"].index)
+                forecast_df[watch_name] = data["forecast"]["forecasted_price"]
+                all_forecast = pd.concat([all_forecast, forecast_df], axis=1)
+
+        # Calculate average across all watches for each date
+        historical_avg = all_historical.mean(axis=1)
+        forecast_avg = all_forecast.mean(axis=1)
+
+        # Add historical average trace
+        fig.add_trace(
+            go.Scatter(
+                x=historical_avg.index,
+                y=historical_avg.values,
+                mode="lines",
+                name="Market Average (Historical)",
+                line=dict(width=3, color="#1E3A8A"),  # Thicker line with blue color
             )
+        )
 
-        # Forecast data
-        if "forecasted_price" in data["forecast"].columns:
-            fig.add_trace(
-                go.Scatter(
-                    x=data["forecast"].index,
-                    y=data["forecast"]["forecasted_price"],
-                    mode="lines",
-                    name=f"{display_name} (Forecast)",
-                    line=dict(dash="dash", width=2),
-                )
+        # Add forecast average trace with a different color
+        fig.add_trace(
+            go.Scatter(
+                x=forecast_avg.index,
+                y=forecast_avg.values,
+                mode="lines",
+                name="Market Average (Forecast)",
+                line=dict(
+                    dash="dash", width=3, color="#F59E0B"
+                ),  # Dashed line with amber/orange color
             )
+        )
 
-    # First, update all the legend names to shorter versions
-    fig.data[0].name = "Rolex Sub (Historical)"
-    fig.data[1].name = "Rolex Sub (Forecast)"
-    fig.data[2].name = "Omega Speedmaster (Historical)"
-    fig.data[3].name = "Omega Speedmaster (Forecast)"
-    fig.data[4].name = "Tudor Black Bay (Historical)"
-    fig.data[5].name = "Tudor Black Bay (Forecast)"
+        title = "Market Average Price Trend"
+        legend_title = "Market Average"
+    else:
+        # Original code for showing individual watches
+        for watch_name, data in watch_data.items():
+            # Get display name
+            display_name = format_watch_name(watch_name)
 
-    fig.data[0].legendgroup = "Rolex"
-    fig.data[1].legendgroup = "Rolex"
-    fig.data[2].legendgroup = "Omega"
-    fig.data[3].legendgroup = "Omega"
-    fig.data[4].legendgroup = "Tudor"
-    fig.data[5].legendgroup = "Tudor"
+            # Historical data
+            if "price(SGD)" in data["historical"].columns:
+                fig.add_trace(
+                    go.Scatter(
+                        x=data["historical"].index,
+                        y=data["historical"]["price(SGD)"],
+                        mode="lines",
+                        name=f"{display_name} (Historical)",
+                        line=dict(width=2),
+                    )
+                )
 
-    # Then, update the layout
+            # Forecast data
+            if "forecasted_price" in data["forecast"].columns:
+                fig.add_trace(
+                    go.Scatter(
+                        x=data["forecast"].index,
+                        y=data["forecast"]["forecasted_price"],
+                        mode="lines",
+                        name=f"{display_name} (Forecast)",
+                        line=dict(
+                            dash="dash", width=2, color="#F59E0B"
+                        ),  # Dashed line with amber color
+                    )
+                )
+
+        # First, update all the legend names to shorter versions
+        if len(fig.data) >= 6:  # Only do this if we have at least 6 traces
+            fig.data[0].name = "Rolex Sub (Historical)"
+            fig.data[1].name = "Rolex Sub (Forecast)"
+            fig.data[2].name = "Omega Speedmaster (Historical)"
+            fig.data[3].name = "Omega Speedmaster (Forecast)"
+            fig.data[4].name = "Tudor Black Bay (Historical)"
+            fig.data[5].name = "Tudor Black Bay (Forecast)"
+
+            fig.data[0].legendgroup = "Rolex"
+            fig.data[1].legendgroup = "Rolex"
+            fig.data[2].legendgroup = "Omega"
+            fig.data[3].legendgroup = "Omega"
+            fig.data[4].legendgroup = "Tudor"
+            fig.data[5].legendgroup = "Tudor"
+
+        title = "Historical Prices and Forecasts"
+        legend_title = "Watch Models"
+
+    # Update the layout
     fig.update_layout(
-        title="Historical Prices and Forecasts",
+        title=title,
         xaxis_title="Date",
         yaxis_title="Price (SGD)",
-        legend_title="Watch Models",
+        legend_title=legend_title,
         template="plotly_white",
         legend=dict(
             orientation="h",  # Horizontal legend
             yanchor="bottom",
-            y=-0.5,  # Position below the plot
+            y=-0.3 if show_average_only else -0.5,  # Position below the plot
             xanchor="center",
-            x=0.4,
-            traceorder="grouped",  # This ensures legend groups stay together
+            x=0.5 if show_average_only else 0.4,
+            traceorder="grouped"
+            if not show_average_only
+            else None,  # This ensures legend groups stay together
         ),
     )
 
