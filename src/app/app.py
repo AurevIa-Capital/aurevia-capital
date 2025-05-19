@@ -3,6 +3,7 @@ import warnings
 import streamlit as st
 
 from app.components.components import create_header, create_sidebar_navigation
+from app.pages.analysis import show_analysis_page
 from app.pages.overview import show_overview_page
 from app.utils.data_loader import load_data, load_watch_images
 from app.utils.styling import create_footer, load_css
@@ -49,8 +50,7 @@ def main():
     if page == "Overview":
         show_overview_page(summary_df, watch_data, watch_images)
     elif page == "Watch Analysis":
-        st.markdown("# Watch Analysis")
-        st.info("This page is under development.")
+        show_analysis_page(summary_df, watch_data, watch_images)
     elif page == "Compare Watches":
         st.markdown("# Compare Watches")
         st.info("This page is under development.")
