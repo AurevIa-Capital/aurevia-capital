@@ -5,18 +5,16 @@ conf/local/**
 # Ignore potentially sensitive credentials files
 conf/**/*credentials*
 
-# Ignore large output files but keep structure
-data/output/*.png
-data/output/*.jpg
-data/output/*.jpeg
+# Data files policy: exclude by default unless explicitly requested
+data/watches/*.csv
+data/images/*
+data/output/*
 data/watch_data/
 *.log
 
-# Keep essential data directories
-!data/watches/
-!data/watches/**
-!data/images/
-!data/images/**
+# Keep directory structure but not content
+!data/watches/.gitkeep
+!data/images/.gitkeep
 !data/output/.gitkeep
 
 # Keep all .gitkeep files

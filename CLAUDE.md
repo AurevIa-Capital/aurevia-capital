@@ -89,6 +89,17 @@ git commit -m "descriptive message"
 git push origin main
 ```
 
+**Commit Message Guidelines:**
+- Use clear, descriptive commit messages
+- **NEVER include**: "🤖 Generated with Claude Code" or "Co-Authored-By: Claude <noreply@anthropic.com>"
+- Keep messages concise and focused on the change made
+- Use present tense ("Add feature" not "Added feature")
+
+**Data Files Policy:**
+- **NEVER commit files in `data/` directory** unless explicitly requested
+- Data files are typically large and change frequently
+- Use `.gitignore` to exclude `data/` by default
+
 **Commit Triggers:**
 - After completing any file refactoring
 - When adding new features or components
