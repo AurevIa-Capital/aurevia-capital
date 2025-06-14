@@ -5,13 +5,19 @@ conf/local/**
 # Ignore potentially sensitive credentials files
 conf/**/*credentials*
 
-# Ignore everything in the following folders
-data/**
-src/deprecated/**
+# Ignore large output files but keep structure
+data/output/*.png
+data/output/*.jpg
+data/output/*.jpeg
+data/watch_data/
+*.log
 
-# Except their sub-folders
+# Keep essential data directories
 !data/watches/
 !data/watches/**
+!data/images/
+!data/images/**
+!data/output/.gitkeep
 
 # Keep all .gitkeep files
 !.gitkeep
@@ -163,6 +169,35 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Forecasting platform artifacts
+forecasting-platform/api-gateway/*.db
+forecasting-platform/dashboard/.streamlit/
+forecasting-platform/*/logs/
+forecasting-platform/*/temp/
+
+# Model artifacts (can be regenerated)
+models/
+*.pkl
+*.joblib
+*.model
+
+# Screenshots and debug files
+*_screenshot.png
+*_error*.png
+debug_*.html
+
+# Selenium drivers
+chromedriver*
+geckodriver*
+*.crx
+
+# API keys and secrets
+.env.local
+.env.production
+.env.development
+secrets.json
+config/secrets/
 
 ####################
 .claude/settings.local.json
