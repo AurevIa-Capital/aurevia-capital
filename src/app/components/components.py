@@ -21,7 +21,6 @@ def create_header():
 
 def create_sidebar_navigation():
     """Create sidebar navigation."""
-    # st.sidebar.image("https://www.svgrepo.com/show/491067/watch.svg", width=50)
     st.sidebar.title("Navigation")
     page = st.sidebar.radio(
         "Select Page",
@@ -163,16 +162,6 @@ def create_watch_card(
                 <div>
         """
 
-        # # Only add best model if show_model is True
-        # if show_model and best_model:
-        #     html_content += f"<p><strong>Best Model:</strong> {best_model}</p>"
-
-        # html_content += f"""
-        #             <p><strong>30-Day Change:</strong> <span class="{trend_class}">{format_percent(price_change)} {get_trend_arrow(price_change)}</span></p>
-        #         </div>
-        #     </div>
-        # </div>
-        # """
 
         st.markdown(html_content, unsafe_allow_html=True)
 

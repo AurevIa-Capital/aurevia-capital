@@ -5,8 +5,9 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-# Suppress warnings
-warnings.filterwarnings("ignore")
+# Configure warnings - suppress only specific pandas/numpy warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="pandas")
+warnings.filterwarnings("ignore", category=UserWarning, module="numpy")
 
 
 def load_data():

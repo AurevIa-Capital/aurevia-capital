@@ -8,10 +8,9 @@ from app.pages.overview import show_overview_page
 from app.utils.data_loader import load_data, load_watch_images
 from app.utils.styling import create_footer, load_css
 
-# Other pages will be imported here as they are developed
-
-# Suppress warnings
-warnings.filterwarnings("ignore")
+# Configure warnings - suppress only specific streamlit warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="streamlit")
+warnings.filterwarnings("ignore", category=FutureWarning, module="pandas")
 
 
 def main():
@@ -42,9 +41,9 @@ def main():
         summary_df, watch_data = load_data()
         watch_images = load_watch_images(images_dir)
 
-    # Remove debugging lines later
+    # Check for local images
     if not any(not path.startswith("http") for path in watch_images.values()):
-        st.sidebar.warning("No local images were found. Using online fallback images.")
+        st.sidebar.info("Using online images as fallback.")
 
     # Show selected page
     if page == "Overview":

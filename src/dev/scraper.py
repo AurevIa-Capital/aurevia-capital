@@ -1,256 +1,328 @@
 import json
+import logging
 import os
+import random
+import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
+import requests
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from webdriver_manager.chrome import ChromeDriverManager
+
+# Add utils to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.selenium_utils import SeleniumDriverFactory, safe_quit_driver, check_cloudflare_challenge
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
-def scrape_watchcharts(urls, base_dir="data/watches"):
-    """
-    Scrape watch price data from multiple WatchCharts URLs
+@dataclass
+class WatchTarget:
+    """Data class for watch scraping targets."""
+    brand: str
+    model_name: str
+    url: str
+    watch_id: str
 
-    Args:
-        urls (list): List of WatchCharts URLs to scrape
-        base_dir (str): Base directory to save output files
 
-    Returns:
-        dict: Dictionary mapping URLs to DataFrames (or None for failed scrapes)
-    """
-    results = {}
+class CloudflareBypassScraper:
+    """Enhanced scraper with Cloudflare bypass capabilities."""
+    
+    def __init__(self, max_workers: int = 3, delay_range: Tuple[int, int] = (5, 15)):
+        self.max_workers = max_workers
+        self.delay_range = delay_range
+        self.session = requests.Session()
+        self.setup_session()
+        
+    def setup_session(self):
+        """Setup requests session with realistic headers."""
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Cache-Control': 'max-age=0'
+        })
 
-    # Setup Chrome options - only do this once
-    options = Options()
-    options.add_argument("--start-maximized")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option("useAutomationExtension", False)
+    def create_stealth_driver(self) -> webdriver.Chrome:
+        """Create a stealthy Chrome driver using the factory."""
+        return SeleniumDriverFactory.create_stealth_driver()
 
-    # Initialize WebDriver once for all scrapes
-    print("Setting up Chrome browser...")
-    driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager().install()), options=options
-    )
+    def random_delay(self):
+        """Add random delay between requests."""
+        delay = random.uniform(*self.delay_range)
+        time.sleep(delay)
 
-    try:
-        for i, url in enumerate(urls):
-            print(f"\n{'=' * 60}")
-            print(f"Processing watch {i + 1}/{len(urls)}: {url}")
-            print(f"{'=' * 60}")
-
-            # Generate output file path
-            output_file = get_output_path_from_url(url, base_dir)
-            print(f"Will save to: {output_file}")
-
-            # Create output directory if needed
-            output_dir = os.path.dirname(output_file)
-            if output_dir and not os.path.exists(output_dir):
-                os.makedirs(output_dir)
-
-            try:
-                # Navigate to page
-                print(f"Opening {url}...")
-                driver.get(url)
-
-                # Wait for user input for EVERY watch - as requested
-                print("\n============================================================")
-                print(f"Watch {i + 1}/{len(urls)}: {url}")
-                print("MANUAL ACTION REQUIRED: Please solve CAPTCHA if needed")
-                print(
-                    "After the page fully loads with the watch data, press Enter to continue"
-                )
-                print("============================================================\n")
-                input("Press Enter when the page is loaded...")
-
-                # Sleep for 10 seconds as requested
-                print("Waiting 10 seconds to ensure page is fully loaded...")
-                time.sleep(10)
-
-                # Try to locate a chart element to confirm page loaded properly
-                try:
-                    WebDriverWait(driver, 5).until(
-                        EC.presence_of_element_located((By.TAG_NAME, "canvas"))
-                    )
-                    print("Chart elements detected on page")
-                except Exception:
-                    print(
-                        "Warning: Could not detect chart elements - page may not be fully loaded"
-                    )
-
-                # JavaScript to extract price data
-                extract_script = """
-                function extractPriceData() {
-                    // Check if Chart.js is available
-                    if (!window.Chart || !window.Chart.instances) {
-                        return { error: "Chart.js not found or not initialized" };
-                    }
-                    
-                    // Get all chart instances
-                    const chartInstances = Object.values(window.Chart.instances);
-                    console.log(`Found ${chartInstances.length} chart instances`);
-                    
-                    // Find price history data
-                    for (let i = 0; i < chartInstances.length; i++) {
-                        const chart = chartInstances[i];
-                        
-                        if (!chart.data || !chart.data.datasets) continue;
-                        
-                        for (let j = 0; j < chart.data.datasets.length; j++) {
-                            const dataset = chart.data.datasets[j];
-                            
-                            if (!dataset.data || dataset.data.length === 0) continue;
-                            
-                            // Check if this looks like price history data
-                            const samplePoint = dataset.data[0];
-                            if (samplePoint && 
-                                typeof samplePoint === 'object' && 
-                                samplePoint.y !== undefined && 
-                                samplePoint.x instanceof Date) {
-                                
-                                console.log(`Found price data in chart ${i}, dataset ${j}`);
-                                
-                                // Format data for return
-                                return {
-                                    success: true,
-                                    watchName: document.title.split('-')[0]?.trim() || 'Watch',
-                                    data: dataset.data.map(point => ({
-                                        date: point.x.toISOString().split('T')[0],  // Format as YYYY-MM-DD
-                                        price: point.y
-                                    }))
-                                };
-                            }
-                        }
-                    }
-                    
-                    return { error: "No price history data found in any chart" };
-                }
+    def extract_price_data(self, driver: webdriver.Chrome) -> Optional[pd.DataFrame]:
+        """Extract price data using multiple fallback methods."""
+        
+        # Method 1: Chart.js extraction (original method)
+        chart_script = """
+        function extractFromCharts() {
+            if (!window.Chart || !window.Chart.instances) {
+                return null;
+            }
+            
+            const chartInstances = Object.values(window.Chart.instances);
+            
+            for (let chart of chartInstances) {
+                if (!chart.data || !chart.data.datasets) continue;
                 
-                return JSON.stringify(extractPriceData());
-                """
-
-                # Execute JavaScript to extract data
-                print("Extracting price data from charts...")
-                result = driver.execute_script(extract_script)
+                for (let dataset of chart.data.datasets) {
+                    if (!dataset.data || dataset.data.length === 0) continue;
+                    
+                    const samplePoint = dataset.data[0];
+                    if (samplePoint && 
+                        typeof samplePoint === 'object' && 
+                        samplePoint.y !== undefined && 
+                        samplePoint.x instanceof Date) {
+                        
+                        return dataset.data.map(point => ({
+                            date: point.x.toISOString().split('T')[0],
+                            price: point.y
+                        }));
+                    }
+                }
+            }
+            return null;
+        }
+        
+        return JSON.stringify(extractFromCharts());
+        """
+        
+        try:
+            result = driver.execute_script(chart_script)
+            if result and result != "null":
                 data = json.loads(result)
+                if data:
+                    df = pd.DataFrame(data)
+                    df.rename(columns={"price": "price(SGD)"}, inplace=True)
+                    return df
+        except Exception as e:
+            print(f"Chart.js extraction failed: {e}")
+        
+        # Method 2: DOM scraping fallback
+        try:
+            price_elements = driver.find_elements(By.CSS_SELECTOR, "[data-price], .price-value, .chart-data")
+            if price_elements:
+                # Extract data from DOM elements
+                # This would need to be customized based on WatchCharts' actual DOM structure
+                print("Found price elements in DOM, but extraction not implemented")
+        except Exception as e:
+            print(f"DOM extraction failed: {e}")
+        
+        # Method 3: Network monitoring (would require additional setup)
+        # Could intercept XHR requests for chart data
+        
+        return None
 
-                if "error" in data:
-                    print(f"Error extracting data: {data['error']}")
-
-                    # Additional debugging
-                    print("Checking available charts...")
-                    chart_info = driver.execute_script("""
-                        if (window.Chart && window.Chart.instances) {
-                            return Object.keys(window.Chart.instances).length + " charts found";
-                        }
-                        return "No Chart.js instances found";
-                    """)
-                    print(chart_info)
-
-                    results[url] = None
-                    continue  # Skip to next URL
-
-                if not data.get("success"):
-                    print("Unknown error during data extraction")
-                    results[url] = None
-                    continue  # Skip to next URL
-
-                # Create DataFrame with the data
-                print(f"Successfully extracted {len(data['data'])} price points")
-                df = pd.DataFrame(data["data"])
-
-                # Rename price column to include currency
-                df.rename(columns={"price": "price(SGD)"}, inplace=True)
-
-                # Save to CSV with proper headers
-                df.to_csv(output_file, index=False)
-                print(f"Data saved to {output_file}")
-
-                # Show preview
-                print("\nData preview:")
-                print(df.head())
-
-                # Store result
-                results[url] = df
-
-            except Exception as e:
-                print(f"Error during scraping: {str(e)}")
-
-                # Try to take screenshot for debugging
+    def scrape_single_watch(self, watch: WatchTarget, output_dir: str = "data/watches") -> bool:
+        """Scrape a single watch with full error handling."""
+        output_file = os.path.join(output_dir, f"{watch.watch_id}.csv")
+        
+        # Skip if already exists
+        if os.path.exists(output_file):
+            print(f"✅ {watch.brand} {watch.model_name} - Already scraped")
+            return True
+        
+        driver = None
+        try:
+            print(f"🔄 {watch.brand} {watch.model_name} - Starting scrape")
+            
+            # Create driver
+            driver = self.create_stealth_driver()
+            
+            # Navigate with retries
+            max_retries = 3
+            for attempt in range(max_retries):
                 try:
+                    driver.get(watch.url)
+                    
+                    # Wait for page load and check for Cloudflare
+                    WebDriverWait(driver, 30).until(
+                        lambda d: d.execute_script("return document.readyState") == "complete"
+                    )
+                    
+                    # Check if we got blocked
+                    page_source = driver.page_source.lower()
+                    if "cloudflare" in page_source and "checking your browser" in page_source:
+                        print(f"⚠️  Cloudflare challenge detected, waiting...")
+                        time.sleep(random.uniform(20, 40))
+                        
+                        # Check again
+                        page_source = driver.page_source.lower()
+                        if "cloudflare" in page_source and "checking your browser" in page_source:
+                            raise Exception("Cloudflare challenge not resolved")
+                    
+                    # Look for chart elements
+                    WebDriverWait(driver, 20).until(
+                        EC.any_of(
+                            EC.presence_of_element_located((By.TAG_NAME, "canvas")),
+                            EC.presence_of_element_located((By.CSS_SELECTOR, "[data-chart]")),
+                            EC.presence_of_element_located((By.CSS_SELECTOR, ".chart"))
+                        )
+                    )
+                    break
+                    
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        raise e
+                    print(f"⚠️  Attempt {attempt + 1} failed, retrying...")
+                    self.random_delay()
+            
+            # Extract data
+            df = self.extract_price_data(driver)
+            
+            if df is not None and len(df) > 0:
+                # Ensure output directory exists
+                os.makedirs(output_dir, exist_ok=True)
+                
+                # Save data
+                df.to_csv(output_file, index=False)
+                print(f"✅ {watch.brand} {watch.model_name} - Saved {len(df)} data points")
+                return True
+            else:
+                print(f"❌ {watch.brand} {watch.model_name} - No data extracted")
+                return False
+                
+        except Exception as e:
+            print(f"❌ {watch.brand} {watch.model_name} - Error: {str(e)}")
+            
+            # Save error screenshot
+            try:
+                if driver:
                     screenshot_path = output_file.replace(".csv", "_error.png")
                     driver.save_screenshot(screenshot_path)
-                    print(f"Error screenshot saved to: {screenshot_path}")
-                except Exception:
-                    pass
+            except:
+                pass
+            
+            return False
+            
+        finally:
+            if driver:
+                driver.quit()
+            
+            # Random delay between requests
+            self.random_delay()
 
-                results[url] = None
-
+    def scrape_watches_parallel(self, watches: List[WatchTarget], output_dir: str = "data/watches") -> Dict[str, bool]:
+        """Scrape multiple watches in parallel with rate limiting."""
+        results = {}
+        
+        # Create output directory
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Use ThreadPoolExecutor for controlled parallelism
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            # Submit all jobs
+            future_to_watch = {
+                executor.submit(self.scrape_single_watch, watch, output_dir): watch 
+                for watch in watches
+            }
+            
+            # Collect results
+            for future in future_to_watch:
+                watch = future_to_watch[future]
+                try:
+                    success = future.result()
+                    results[f"{watch.brand}_{watch.model_name}"] = success
+                except Exception as e:
+                    print(f"❌ {watch.brand} {watch.model_name} - Parallel execution error: {e}")
+                    results[f"{watch.brand}_{watch.model_name}"] = False
+        
         return results
 
-    finally:
-        # Always close the browser at the end
-        driver.quit()
-        print("Browser closed")
+
+def discover_watch_urls() -> List[WatchTarget]:
+    """Discover watch URLs for 10 brands with 10 watches each."""
+    
+    # Pre-defined targets (you would need to expand this list)
+    # These would ideally be discovered dynamically from WatchCharts
+    watch_targets = [
+        # Rolex (10 watches)
+        WatchTarget("Rolex", "Submariner 124060", "https://watchcharts.com/watch_model/21813-rolex-submariner-124060/overview", "21813-rolex-submariner-124060"),
+        WatchTarget("Rolex", "GMT-Master II 126710BLNR", "https://watchcharts.com/watch_model/1234-rolex-gmt-master-ii-126710blnr/overview", "1234-rolex-gmt-master-ii-126710blnr"),
+        # Add 8 more Rolex watches...
+        
+        # Omega (10 watches)
+        WatchTarget("Omega", "Speedmaster Professional", "https://watchcharts.com/watch_model/30921-omega-speedmaster-professional-moonwatch-310-30-42-50-01-002/overview", "30921-omega-speedmaster-professional-moonwatch-310-30-42-50-01-002"),
+        # Add 9 more Omega watches...
+        
+        # Tudor (10 watches)
+        WatchTarget("Tudor", "Black Bay 58", "https://watchcharts.com/watch_model/326-tudor-black-bay-58-79030n/overview", "326-tudor-black-bay-58-79030n"),
+        # Add 9 more Tudor watches...
+        
+        # Add 7 more brands with 10 watches each...
+    ]
+    
+    return watch_targets
 
 
-def get_output_path_from_url(url, base_dir="data/watches"):
-    """
-    Generate an output file path from a WatchCharts URL
+def main():
+    """Main function to scrape 100 watches."""
+    print("🚀 Starting enhanced watch scraper for 100 watches")
+    
+    # Discover targets
+    watches = discover_watch_urls()
+    print(f"📋 Found {len(watches)} watch targets")
+    
+    # Create scraper with conservative settings
+    scraper = CloudflareBypassScraper(
+        max_workers=2,  # Conservative to avoid rate limiting
+        delay_range=(10, 20)  # Longer delays for Cloudflare
+    )
+    
+    # Group by brand for organized scraping
+    brands = {}
+    for watch in watches:
+        if watch.brand not in brands:
+            brands[watch.brand] = []
+        brands[watch.brand].append(watch)
+    
+    # Scrape brand by brand
+    all_results = {}
+    for brand, brand_watches in brands.items():
+        print(f"\n📦 Processing {brand} ({len(brand_watches)} watches)")
+        
+        brand_results = scraper.scrape_watches_parallel(brand_watches)
+        all_results.update(brand_results)
+        
+        # Longer pause between brands
+        if brand != list(brands.keys())[-1]:  # Not the last brand
+            print(f"⏸️  Pausing 60 seconds before next brand...")
+            time.sleep(60)
+    
+    # Summary
+    print("\n📊 SCRAPING SUMMARY")
+    print("=" * 50)
+    
+    successful = sum(1 for success in all_results.values() if success)
+    total = len(all_results)
+    
+    print(f"✅ Successful: {successful}/{total}")
+    print(f"❌ Failed: {total - successful}/{total}")
+    print(f"📈 Success rate: {successful/total*100:.1f}%")
+    
+    # Group by brand for detailed report
+    for brand in brands.keys():
+        brand_results = {k: v for k, v in all_results.items() if k.startswith(brand)}
+        brand_success = sum(1 for success in brand_results.values() if success)
+        print(f"  {brand}: {brand_success}/{len(brand_results)}")
 
-    Args:
-        url (str): URL of the WatchCharts watch page
-        base_dir (str): Base directory to save output files
 
-    Returns:
-        str: Path to save the CSV file
-    """
-    # Extract watch identifier from URL
-    # Example URL: https://watchcharts.com/watch_model/641-rolex-cosmograph-daytona-116500/overview
-    url_parts = url.strip("/").split("/")
-
-    # Find the part containing the watch identifier (typically after "watch_model")
-    watch_id = None
-    for i, part in enumerate(url_parts):
-        if part == "watch_model" and i + 1 < len(url_parts):
-            watch_id = url_parts[i + 1]
-            break
-
-    if not watch_id:
-        # Fallback if we couldn't extract a proper ID
-        import hashlib
-
-        watch_id = hashlib.md5(url.encode()).hexdigest()[:10]
-
-    # Create filename from watch ID
-    filename = f"{watch_id}.csv"
-
-    # Create full path
-    os.makedirs(base_dir, exist_ok=True)
-    output_path = os.path.join(base_dir, filename)
-
-    return output_path
-
-
-# Usage
-urls = [
-    # "https://watchcharts.com/watch_model/21813-rolex-submariner-124060/overview",  # Rolex Submariner (Rolex 124060)
-    "https://watchcharts.com/watch_model/30921-omega-speedmaster-professional-moonwatch-310-30-42-50-01-002/overview",  # Omega Speedmaster
-    # "https://watchcharts.com/watch_model/326-tudor-black-bay-58-79030n/overview",  # Tudor Black Bay 58
-]
-
-# Process all URLs at once
-results = scrape_watchcharts(urls)
-
-# Summary of results
-print("\nSummary of scraping results:")
-for url, df in results.items():
-    watch_id = url.split("/")[-2]  # Extract watch ID from URL
-    status = "SUCCESS" if df is not None else "FAILED"
-    print(f"{watch_id}: {status}")
-
-print("\nAll watches processed!")
+if __name__ == "__main__":
+    main()

@@ -1,5 +1,6 @@
 import os
 import warnings
+from typing import Dict, List, Tuple, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,12 +14,15 @@ from sklearn.preprocessing import StandardScaler
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
-warnings.filterwarnings("ignore")
+# Configure warnings - only suppress specific warnings we know are safe
+warnings.filterwarnings("ignore", category=FutureWarning, module="statsmodels")
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
+warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
 
-# Set style for plots
-plt.style.use("seaborn-v0_8-whitegrid")
-sns.set_palette("viridis")
+# Set modern plotting style
+sns.set_theme(style="whitegrid", palette="viridis")
 plt.rcParams["figure.figsize"] = [12, 6]
+plt.rcParams["font.size"] = 10
 
 
 def ensure_output_dir(output_dir="data/output/"):
