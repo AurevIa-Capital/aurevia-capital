@@ -10,10 +10,10 @@ A modern Streamlit-based luxury watch price forecasting application that analyze
 
 ```bash
 # Generate watch URLs (Stage 1)
-python -m src.scripts.generate_watch_urls
+python -m src.collectors.watch.url_generator
 
 # Scrape price data (Stage 2)
-python -m src.scripts.scrape_100_watches
+python -m src.collectors.watch.mass_runner
 
 # Run the dashboard
 python src/scripts/run_dashboard.py
@@ -30,8 +30,8 @@ python src/scripts/run_dashboard.py
 - **Utils**: `src/utils/` → shared utilities (Selenium, etc.)
 
 ### Two-Stage Data Collection Pipeline
-1. **URL Discovery**: `src/scripts/generate_watch_urls.py` → scrapes brand pages for watch URLs
-2. **Price Scraping**: `src/scripts/scrape_100_watches.py` → collects historical price data
+1. **URL Discovery**: `src/collectors/watch/url_generator.py` → streamlined watch URL generation
+2. **Price Scraping**: `src/collectors/watch/mass_runner.py` → batch price data collection
 3. **Data Analysis**: `src/models/forecasting/data_prep.py` → time series analysis and visualization
 4. **Model Training**: `src/models/forecasting/modelling.py` → ML model training and evaluation
 5. **Results**: `data/output/` → model predictions and analysis results
@@ -78,24 +78,24 @@ python src/models/forecasting/modelling.py
 ### Streamlined Two-Stage Scraping System
 ```bash
 # Stage 1: Generate watch target URLs (10 watches per brand)
-python -m src.scripts.generate_watch_urls
-# Uses: WatchDiscovery → BaseScraper for unified browser handling
+python -m src.collectors.watch.url_generator
+# Uses: WatchURLGenerator → WatchDiscovery → BaseScraper
 # Outputs: data/scrape/url/watch_targets_100.json
 
 # Stage 2: Scrape historical price data
-python -m src.scripts.scrape_100_watches  
-# Uses: CloudflareBypassScraper → BaseScraper for shared functionality
-# Outputs: data/scrape/prices/{Brand}-{Model}.csv
+python -m src.collectors.watch.mass_runner
+# Uses: WatchScrapingRunner → MassWatchScraper → CloudflareBypassScraper
+# Outputs: data/scrape/prices/{Brand}-{Model}-{ID}.csv
 
 # Individual components (for debugging)
-python -m src.collectors.watch.mass_scraper     # Orchestrate mass scraping
-python -m src.collectors.watch.scraper          # Cloudflare-bypass scraping engine
+python -m src.collectors.watch.mass_scraper     # Direct mass scraping
+python -m src.collectors.watch.scraper          # Single watch scraping
 ```
 
-### Scraping Workflow Details
-1. **URL Generation**: `generate_watch_urls.py` → `WatchDiscovery.discover_all_watches()` with unified error handling
-2. **Price Collection**: `scrape_100_watches.py` → `CloudflareBypassScraper.process_multiple_targets()` with brand delays
-3. **Output Format**: CSV files named `{Brand}-{Model}.csv` in `data/scrape/prices/`
+### Streamlined Workflow Details
+1. **URL Generation**: `WatchURLGenerator` → `WatchDiscovery.discover_all_watches()` with statistics
+2. **Price Collection**: `WatchScrapingRunner` → `MassWatchScraper` with configurable paths
+3. **Output Format**: Unique CSV files named `{Brand}-{Model}-{ID}.csv` in `data/scrape/prices/`
 4. **Resume Capability**: Progress saved to `data/scrape/scraping_progress.json` for interruption recovery
 
 ### Refactoring Benefits (June 2024)
@@ -104,6 +104,12 @@ python -m src.collectors.watch.scraper          # Cloudflare-bypass scraping eng
 - **Extensibility**: Easy to add new asset types by extending BaseScraper
 - **Reliability**: Comprehensive retry logic and Cloudflare handling in base classes
 - **Performance**: Optimized delays and resource management through shared utilities
+
+### New Streamlined Classes ✅
+- **WatchURLGenerator**: Clean interface for URL generation with statistics tracking
+- **WatchScrapingRunner**: Configurable runner with validation and interactive confirmation
+- **File Organization**: Moved from `src/scripts/` to appropriate `src/collectors/watch/` modules
+- **Better UX**: Clear progress reporting, helpful error messages, and resume guidance
 
 ## Development Workflow Standards
 
