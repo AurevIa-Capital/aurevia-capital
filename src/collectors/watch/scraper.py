@@ -183,10 +183,16 @@ class CloudflareBypassScraper(BaseScraper):
         self, watch: WatchTarget, output_dir: str = "data/watches"
     ) -> bool:
         """Scrape a single watch with full error handling and incremental updates."""
-        # Create filename in format {brand}-{model}.csv
+        # Create filename in format {brand}-{model}-{id}.csv to ensure uniqueness
         brand_safe = self.make_filename_safe(watch.brand)
-        model_safe = self.make_filename_safe(watch.model_name)
-        filename = f"{brand_safe}-{model_safe}.csv"
+        
+        # Extract clean model name without the watch ID prefix
+        clean_model = watch.model_name
+        if " - " in watch.model_name and watch.model_name.split(" - ")[0].isdigit():
+            clean_model = watch.model_name.split(" - ", 1)[1]
+        
+        model_safe = self.make_filename_safe(clean_model)
+        filename = f"{brand_safe}-{model_safe}-{watch.watch_id}.csv"
         output_file = os.path.join(output_dir, filename)
 
         # Load existing data to check for latest date

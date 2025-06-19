@@ -43,8 +43,9 @@ data/
 │   ├── url/
 │   │   └── watch_targets_100.json    # Stage 1 output: Watch URLs and metadata
 │   ├── prices/
-│   │   ├── Rolex-Submariner.csv      # Stage 2 output: Price data per watch
-│   │   ├── Patek_Philippe-Nautilus.csv
+│   │   ├── Rolex-Submariner-638.csv      # Stage 2 output: Price data per watch
+│   │   ├── Rolex-Submariner-323.csv      # Different models have unique IDs
+│   │   ├── Patek_Philippe-Nautilus-5711.csv
 │   │   └── ...
 │   └── scraping_progress.json        # Progress tracking
 ├── output/
@@ -173,7 +174,7 @@ git push origin main
 
 ### File Naming Standards
 - **Scraping Targets**: `watch_targets_100.json` (input for scraping)
-- **Price Data**: `{Brand}-{Model}.csv` (e.g., `Rolex-Submariner.csv`)
+- **Price Data**: `{Brand}-{Model}-{watch_id}.csv` (e.g., `Rolex-Submariner-638.csv`)
 - **Model Outputs**: `{watch-id}_{model}_{type}.{ext}`
 - **Progress Files**: `scraping_progress.json` (tracks scraping state)
 
@@ -191,7 +192,7 @@ git push origin main
 ```
 
 ```csv
-# Historical price data format (data/scrape/prices/*.csv)
+# Historical price data format (data/scrape/prices/{Brand}-{Model}-{watch_id}.csv)
 date,price(SGD)
 2024-05-11,15463
 2024-05-14,15453
