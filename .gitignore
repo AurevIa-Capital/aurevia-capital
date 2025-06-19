@@ -10,12 +10,8 @@ data/watches/*.csv
 data/images/*
 data/output/*
 data/watch_data/
+data/watches_kiv
 *.log
-
-# Keep directory structure but not content
-!data/watches/.gitkeep
-!data/images/.gitkeep
-!data/output/.gitkeep
 
 # Keep all .gitkeep files
 !.gitkeep

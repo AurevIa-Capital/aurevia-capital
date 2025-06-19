@@ -60,8 +60,8 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/simplysindy/ACTP",
-    packages=find_packages(where="forecasting-platform"),
-    package_dir={"": "forecasting-platform"},
+    packages=find_packages(where="src"),
+    package_dir={"": "src"},
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Financial and Insurance Industry",
@@ -83,7 +83,7 @@ setup(
     entry_points={
         "console_scripts": [
             "watch-forecaster=scripts.run_dashboard:main",
-            "watch-api=scripts.run_api:main",
+            "watch-api=scripts.run_api:main", 
             "watch-scraper=collectors.watch.scraper:main",
             "watch-modeller=models.forecasting.modelling:main",
         ],
