@@ -6,12 +6,7 @@ conf/local/**
 conf/**/*credentials*
 
 # Data files policy: exclude by default unless explicitly requested
-data/watches/*.csv
-data/images/*
-data/output/*
-data/watch_data/
-data/watches_kiv
-*.log
+data/**
 
 # Keep all .gitkeep files
 !.gitkeep
