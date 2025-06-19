@@ -4,37 +4,54 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A modern Streamlit-based luxury watch price forecasting application that analyzes historical price data and generates predictions using multiple machine learning models. The system includes automated data collection via web scraping and comprehensive price analysis tools.
+A modern Streamlit-based luxury watch price forecasting application that analyzes historical price data and generates predictions using multiple machine learning models. The system includes a comprehensive two-stage data collection pipeline via web scraping with Cloudflare bypass capabilities.
 
 ## Quick Start
 
 ```bash
+# Generate watch URLs (Stage 1)
+python -m src.scripts.generate_watch_urls
+
+# Scrape price data (Stage 2)
+python -m src.scripts.scrape_100_watches
+
 # Run the dashboard
-watch-forecaster
-
-# Or directly
-python forecasting-platform/scripts/run_dashboard.py
-
-# For mass scraping (100 watches)
-pip install -e .[scraping]
-python forecasting-platform/scripts/scrape_100_watches.py
+python src/scripts/run_dashboard.py
 ```
 
 ## Project Architecture
 
 ### Core Application Structure
-- **Entry Point**: `forecasting-platform/scripts/run_dashboard.py` → launches Streamlit dashboard
-- **Dashboard**: `forecasting-platform/dashboard/` → plugin-based user interface
-- **API Gateway**: `forecasting-platform/api/` → FastAPI-based REST API
-- **Core**: `forecasting-platform/core/` → shared abstractions and utilities
-- **Utils**: `forecasting-platform/utils/` → shared utilities
+- **Entry Point**: `src/scripts/run_dashboard.py` → launches Streamlit dashboard
+- **Dashboard**: `src/dashboard/` → plugin-based user interface
+- **API Gateway**: `src/api/` → FastAPI-based REST API
+- **Core**: `src/core/` → shared abstractions and utilities
+- **Utils**: `src/utils/` → shared utilities (Selenium, etc.)
 
-### Data Processing Pipeline
-1. **Web Scraping**: `forecasting-platform/collectors/watch/` → Cloudflare-bypass scraping system
-2. **Data Analysis**: `forecasting-platform/models/forecasting/data_prep.py` → time series analysis and visualization
-3. **Model Training**: `forecasting-platform/models/forecasting/modelling.py` → ML model training and evaluation
-4. **Data Storage**: `data/watches/*.csv` → historical price data
+### Two-Stage Data Collection Pipeline
+1. **URL Discovery**: `src/scripts/generate_watch_urls.py` → scrapes brand pages for watch URLs
+2. **Price Scraping**: `src/scripts/scrape_100_watches.py` → collects historical price data
+3. **Data Analysis**: `src/models/forecasting/data_prep.py` → time series analysis and visualization
+4. **Model Training**: `src/models/forecasting/modelling.py` → ML model training and evaluation
 5. **Results**: `data/output/` → model predictions and analysis results
+
+### Data Directory Structure
+```
+data/
+├── scrape/
+│   ├── url/
+│   │   └── watch_targets_100.json    # Stage 1 output: Watch URLs and metadata
+│   ├── prices/
+│   │   ├── Rolex-Submariner.csv      # Stage 2 output: Price data per watch
+│   │   ├── Patek_Philippe-Nautilus.csv
+│   │   └── ...
+│   └── scraping_progress.json        # Progress tracking
+├── output/
+│   ├── model_summary.csv             # ML model performance metrics
+│   ├── featured_data.csv             # Processed visualization data
+│   └── {watch-id}_{model}_{type}.{ext}
+└── images/                           # Watch reference images
+```
 
 ### Machine Learning Models
 The system employs 5 forecasting models:
@@ -49,23 +66,33 @@ The system employs 5 forecasting models:
 ### Application Development
 ```bash
 # Run development server
-watch-forecaster
+python src/scripts/run_dashboard.py
 
 # Data analysis workflow
-python forecasting-platform/models/forecasting/data_prep.py
-python forecasting-platform/models/forecasting/modelling.py
+python src/models/forecasting/data_prep.py
+python src/models/forecasting/modelling.py
 ```
 
-### Mass Scraping System
+### Two-Stage Scraping System
 ```bash
-# Scrape 100 watches across 10 brands
-python forecasting-platform/scripts/scrape_100_watches.py
+# Stage 1: Generate watch target URLs (10 watches per brand)
+python -m src.scripts.generate_watch_urls
+# Outputs: data/scrape/url/watch_targets_100.json
 
-# Individual components
-python forecasting-platform/collectors/watch/watch_discovery.py  # Discover watch URLs
-python forecasting-platform/collectors/watch/scraper.py          # Cloudflare-bypass scraping engine
-python forecasting-platform/collectors/watch/mass_scraper.py     # Orchestrate mass scraping
+# Stage 2: Scrape historical price data
+python -m src.scripts.scrape_100_watches  
+# Outputs: data/scrape/prices/{Brand}-{Model}.csv
+
+# Individual components (for debugging)
+python -m src.collectors.watch.mass_scraper     # Orchestrate mass scraping
+python -m src.collectors.watch.scraper          # Cloudflare-bypass scraping engine
 ```
+
+### Scraping Workflow Details
+1. **URL Generation**: `generate_watch_urls.py` visits brand pages, extracts watch model URLs with clean names
+2. **Price Collection**: `scrape_100_watches.py` reads JSON targets, scrapes historical prices with progress tracking
+3. **Output Format**: CSV files named `{Brand}-{Model}.csv` in `data/scrape/prices/`
+4. **Resume Capability**: Progress saved to `data/scrape/scraping_progress.json` for interruption recovery
 
 ## Development Workflow Standards
 
@@ -109,20 +136,33 @@ git push origin main
 - After updating this CLAUDE.md file
 
 ### Selenium Infrastructure
-- **Shared Utilities**: `forecasting-platform/utils/selenium_utils.py` contains reusable driver factories
+- **Shared Utilities**: `src/utils/selenium_utils.py` contains reusable driver factories
 - **Cloudflare Bypass**: Stealth browser configuration with anti-detection
 - **Resource Management**: Automatic driver cleanup and error handling
 
 ## Data Formats & Conventions
 
-### File Naming
-- **Watch Data**: `{watch-id}-{brand-model}.csv`
+### File Naming Standards
+- **Scraping Targets**: `watch_targets_100.json` (input for scraping)
+- **Price Data**: `{Brand}-{Model}.csv` (e.g., `Rolex-Submariner.csv`)
 - **Model Outputs**: `{watch-id}_{model}_{type}.{ext}`
-- **Progress Files**: `scraping_progress.json`, `watch_targets.json`
+- **Progress Files**: `scraping_progress.json` (tracks scraping state)
 
-### Data Structure
+### Data Structure Standards
+```json
+// Watch targets format (data/scrape/url/watch_targets_100.json)
+[
+  {
+    "brand": "Rolex",
+    "model_name": "22557 - Submariner",
+    "url": "https://watchcharts.com/watch_model/22557-rolex-submariner/overview",
+    "source": "generated"
+  }
+]
+```
+
 ```csv
-# Historical price data format (data/watches/*.csv)
+# Historical price data format (data/scrape/prices/*.csv)
 date,price(SGD)
 2024-05-11,15463
 2024-05-14,15453
@@ -141,14 +181,16 @@ featured_data.csv
 - Matplotlib configured with `plt.rcParams` for consistency
 - All plots use consistent styling and color schemes
 
-### Web Scraping Considerations
+### Web Scraping Infrastructure
+- **Two-Stage Process**: URL discovery → Price collection for better organization
 - **Rate Limiting**: Built-in delays (10-20 seconds) between requests
-- **Parallel Processing**: Maximum 2 concurrent workers for politeness
-- **Progress Persistence**: All scraping progress saved continuously
+- **Fresh Browser Sessions**: New browser instance per brand to avoid detection
+- **Progress Persistence**: All scraping progress saved continuously to `data/scrape/scraping_progress.json`
 - **Resume Capability**: Can restart from interruption points
-- **Cloudflare Handling**: Automatic detection and bypass mechanisms
+- **Cloudflare Handling**: Automatic detection and bypass using stealth techniques
 - **Incremental Updates**: Automatically detects existing data and only scrapes newer data points
 - **Data Merging**: Smart merge of new data with existing CSV files based on date comparison
+- **Clean Filenames**: Brand and model names sanitized for filesystem compatibility
 
 ### Dependencies
 - **Core**: streamlit, pandas, numpy, matplotlib, seaborn
@@ -161,13 +203,15 @@ featured_data.csv
 The application expects these files to exist:
 - `data/output/model_summary.csv` → model performance metrics
 - `data/output/featured_data.csv` → processed visualization data
-- `data/watches/*.csv` → historical price data
+- `data/scrape/prices/*.csv` → historical price data (new format)
 
-### Data Pipeline Setup
+### Complete Data Pipeline Setup
 If data files don't exist, run the complete pipeline:
-1. Scrape data: `python scrape_100_watches.py`
-2. Process data: `python src/dev/data_prep.py`
-3. Train models: `python src/dev/modelling.py`
+1. Generate targets: `python -m src.scripts.generate_watch_urls`
+2. Scrape data: `python -m src.scripts.scrape_100_watches`
+3. Process data: `python src/models/forecasting/data_prep.py`
+4. Train models: `python src/models/forecasting/modelling.py`
+5. Run dashboard: `python src/scripts/run_dashboard.py`
 
 ## Troubleshooting
 
@@ -190,7 +234,7 @@ Strategic refactoring plan to prepare for multi-asset support beyond watches:
 ### 1. **Adopt Organization Structure with Multiple Repos**
 
 ```
-forecasting-platform/
+src/
 ├── core-lib/                    # Shared forecasting library
 ├── data-collectors/             # Asset-specific data collection
 │   ├── watch-collector/
@@ -579,7 +623,7 @@ class EventBus:
 **COMPLETED** - Legacy Code Removal and Streamlining (June 2024)
 
 ### Streamlining Actions Completed
-- ✅ **Removed Legacy Dashboard**: Eliminated `forecasting-platform/dashboard/legacy/` directory
+- ✅ **Removed Legacy Dashboard**: Eliminated `src/dashboard/legacy/` directory
 - ✅ **Consolidated Dashboard Structure**: Moved modern dashboard components up one level
 - ✅ **Removed Deprecated Scripts**: Eliminated `run_app.py` legacy entry point
 - ✅ **Streamlined Entry Points**: Updated setup.py to single dashboard entry point
@@ -589,7 +633,7 @@ class EventBus:
 ### Final Streamlined Structure
 ```
 aurevIa_timepiece/
-├── forecasting-platform/       # ✅ STREAMLINED PLATFORM
+├── src/       # ✅ STREAMLINED PLATFORM
 │   ├── core/                   # ✅ Shared forecasting library
 │   │   ├── assets/             # ✅ Base asset abstractions
 │   │   ├── schemas/            # ✅ Unified data schemas
@@ -630,7 +674,7 @@ aurevIa_timepiece/
 #### 1. **Unified Project Structure** ✅
 ```
 aurevIa_timepiece/
-├── forecasting-platform/       # ✅ UNIFIED PLATFORM (consolidated)
+├── src/       # ✅ UNIFIED PLATFORM (consolidated)
 │   ├── core/                   # ✅ Shared forecasting library
 │   │   ├── assets/             # ✅ Base asset abstractions
 │   │   ├── schemas/            # ✅ Unified data schemas
@@ -724,7 +768,7 @@ aurevIa_timepiece/
 
 #### Start API Gateway
 ```bash
-cd forecasting-platform/api-gateway
+cd src/api-gateway
 pip install -r requirements.txt
 python main.py
 # Access API docs at http://localhost:8000/docs
@@ -732,7 +776,7 @@ python main.py
 
 #### Start Dashboard
 ```bash
-cd forecasting-platform/dashboard
+cd src/dashboard
 pip install -r requirements.txt
 streamlit run main.py
 # Access dashboard at http://localhost:8501
@@ -907,29 +951,29 @@ grep -r "warnings.filterwarnings.*ignore.*)" src/  # Should be minimal
 **COMPLETED** - Unified project structure (June 2024)
 
 ### Problem Solved
-The project had **redundant directory structures** with both `src/` and `forecasting-platform/` containing overlapping functionality. This created confusion and maintenance overhead.
+The project had **redundant directory structures** with both `src/` and `src/` containing overlapping functionality. This created confusion and maintenance overhead.
 
 ### Solution Implemented
-**Consolidated everything into a single `forecasting-platform/` directory** with clear separation of concerns:
+**Consolidated everything into a single `src/` directory** with clear separation of concerns:
 
 #### Migration Completed
-- ✅ **`src/app/` → `forecasting-platform/dashboard/legacy/`** (existing Streamlit app)
-- ✅ **`src/dev/` → `forecasting-platform/collectors/watch/` & `forecasting-platform/models/forecasting/`** (scrapers & ML)
-- ✅ **`src/utils/` → `forecasting-platform/utils/`** (shared utilities)
-- ✅ **Root scripts → `forecasting-platform/scripts/`** (entry points)
+- ✅ **`src/app/` → `src/dashboard/legacy/`** (existing Streamlit app)
+- ✅ **`src/dev/` → `src/collectors/watch/` & `src/models/forecasting/`** (scrapers & ML)
+- ✅ **`src/utils/` → `src/utils/`** (shared utilities)
+- ✅ **Root scripts → `src/scripts/`** (entry points)
 - ✅ **Updated all imports and path references**
 - ✅ **Removed redundant `src/` directory**
 
 #### New Entry Points
 ```bash
 # Legacy Streamlit dashboard
-python forecasting-platform/scripts/run_app.py
+python src/scripts/run_app.py
 
 # Modern plugin-based dashboard  
-python forecasting-platform/scripts/run_modern_dashboard.py
+python src/scripts/run_modern_dashboard.py
 
 # API gateway
-python forecasting-platform/scripts/run_api.py
+python src/scripts/run_api.py
 
 # Or using setup.py entry points:
 pip install -e .
