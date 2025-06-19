@@ -1,0 +1,28 @@
+{
+  "api": {
+    "base_url": "http://localhost:8000/api/v1",
+    "timeout": 30
+  },
+  "dashboard": {
+    "title": "Asset Forecasting Dashboard",
+    "theme": {
+      "primary_color": "#1f77b4",
+      "background_color": "#ffffff",
+      "sidebar_color": "#f0f2f6"
+    },
+    "default_asset_type": "watch",
+    "items_per_page": 50
+  },
+  "plugins": {
+    "enabled": ["watch"],
+    "auto_load": true
+  },
+  "cache": {
+    "enabled": true,
+    "ttl_seconds": 300
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  }
+}
