@@ -21,10 +21,10 @@ class MassWatchScraper:
     """Orchestrates mass scraping of 100 watches with progress tracking."""
 
     def __init__(
-        self, 
+        self,
         output_dir: str = "data/watches",
         targets_file: str = "data/watch_targets_100_do_not_edit.json",
-        progress_file: str = "data/scraping_progress.json"
+        progress_file: str = "data/scraping_progress.json",
     ):
         self.output_dir = output_dir
         self.progress_file = progress_file
@@ -46,30 +46,34 @@ class MassWatchScraper:
                 for target in targets_data:
                     # Extract watch_id from model_name if it contains ID format (e.g., "22557 - Aquanaut")
                     watch_id = ""
-                    model_name = target['model_name']
-                    
+                    model_name = target["model_name"]
+
                     if " - " in model_name and model_name.split(" - ")[0].isdigit():
                         watch_id = model_name.split(" - ")[0]
                         # Keep the clean model name without the ID
                         clean_model_name = model_name.split(" - ", 1)[1]
                     else:
                         # If no ID in model_name, extract from URL
-                        if "/watch_model/" in target['url']:
-                            url_parts = target['url'].split("/")
+                        if "/watch_model/" in target["url"]:
+                            url_parts = target["url"].split("/")
                             for part in url_parts:
                                 if part and part.split("-")[0].isdigit():
                                     watch_id = part.split("-")[0]
                                     break
                         clean_model_name = model_name
-                    
+
                     # Create filename-safe model name
-                    safe_model_name = clean_model_name.replace("/", "-").replace("\\", "-").replace(":", "-")
-                    
+                    safe_model_name = (
+                        clean_model_name.replace("/", "-")
+                        .replace("\\", "-")
+                        .replace(":", "-")
+                    )
+
                     filtered_target = {
-                        'brand': target['brand'],
-                        'model_name': safe_model_name,
-                        'url': target['url'],
-                        'watch_id': watch_id
+                        "brand": target["brand"],
+                        "model_name": safe_model_name,
+                        "url": target["url"],
+                        "watch_id": watch_id,
                     }
                     filtered_targets.append(WatchTarget(**filtered_target))
                 return filtered_targets

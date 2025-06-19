@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
@@ -17,8 +16,6 @@ import pandas as pd
 import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
 
 from src.collectors.watch.base_scraper import BaseScraper
 from src.utils.selenium_utils import safe_quit_driver
@@ -66,7 +63,7 @@ class CloudflareBypassScraper(BaseScraper):
     def process_target(self, target: Dict, **kwargs) -> bool:
         """Process a single watch scraping target."""
         watch = WatchTarget(**target)
-        output_dir = kwargs.get('output_dir', 'data/watches')
+        output_dir = kwargs.get("output_dir", "data/watches")
         return self.scrape_single_watch(watch, output_dir)
 
     def extract_price_data(self, driver: webdriver.Chrome) -> Optional[pd.DataFrame]:
@@ -185,12 +182,12 @@ class CloudflareBypassScraper(BaseScraper):
         """Scrape a single watch with full error handling and incremental updates."""
         # Create filename in format {brand}-{model}-{id}.csv to ensure uniqueness
         brand_safe = self.make_filename_safe(watch.brand)
-        
+
         # Extract clean model name without the watch ID prefix
         clean_model = watch.model_name
         if " - " in watch.model_name and watch.model_name.split(" - ")[0].isdigit():
             clean_model = watch.model_name.split(" - ", 1)[1]
-        
+
         model_safe = self.make_filename_safe(clean_model)
         filename = f"{brand_safe}-{model_safe}-{watch.watch_id}.csv"
         output_file = os.path.join(output_dir, filename)
@@ -209,15 +206,13 @@ class CloudflareBypassScraper(BaseScraper):
         try:
             # Create driver and navigate with retries
             driver = self.create_browser_session()
-            
+
             # Define chart elements to wait for
-            chart_elements = [
-                "canvas",
-                "[data-chart]", 
-                ".chart"
-            ]
-            
-            if not self.safe_navigate_with_retries(driver, watch.url, wait_for_elements=chart_elements):
+            chart_elements = ["canvas", "[data-chart]", ".chart"]
+
+            if not self.safe_navigate_with_retries(
+                driver, watch.url, wait_for_elements=chart_elements
+            ):
                 logger.error(f"Failed to navigate to {watch.brand} {watch.model_name}")
                 return False
 
@@ -297,22 +292,24 @@ class CloudflareBypassScraper(BaseScraper):
         self, watches: List[WatchTarget], output_dir: str = "data/watches"
     ) -> Dict[str, bool]:
         """Scrape multiple watches in parallel with rate limiting."""
-        results = {}
+        _results = {}
         os.makedirs(output_dir, exist_ok=True)
 
         # Convert WatchTarget objects to dictionaries for base class compatibility
         targets = [
             {
-                'brand': watch.brand,
-                'model_name': watch.model_name,
-                'url': watch.url,
-                'watch_id': watch.watch_id
+                "brand": watch.brand,
+                "model_name": watch.model_name,
+                "url": watch.url,
+                "watch_id": watch.watch_id,
             }
             for watch in watches
         ]
 
         # Use base class method for processing with brand-based delays
-        return self.process_multiple_targets(targets, brand_delay=60, output_dir=output_dir)
+        return self.process_multiple_targets(
+            targets, brand_delay=60, output_dir=output_dir
+        )
 
 
 def discover_watch_urls() -> List[WatchTarget]:

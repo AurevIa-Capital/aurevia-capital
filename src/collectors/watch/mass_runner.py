@@ -8,7 +8,6 @@ with configurable options and comprehensive progress tracking.
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from .mass_scraper import MassWatchScraper
 
@@ -17,25 +16,25 @@ logger = logging.getLogger(__name__)
 
 class WatchScrapingRunner:
     """Streamlined runner for mass watch scraping operations."""
-    
+
     def __init__(
         self,
         targets_file: str = "data/scrape/url/watch_targets_100.json",
         output_dir: str = "data/scrape/prices",
-        progress_file: str = "data/scrape/scraping_progress.json"
+        progress_file: str = "data/scrape/scraping_progress.json",
     ):
         """Initialize with configurable file paths."""
         self.targets_file = Path(targets_file)
         self.output_dir = Path(output_dir)
         self.progress_file = Path(progress_file)
-        
+
         # Validate inputs
         if not self.targets_file.exists():
             raise FileNotFoundError(f"Targets file not found: {self.targets_file}")
-        
+
         # Ensure output directory exists
         self.output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     def display_info(self) -> None:
         """Display scraping configuration and features."""
         print("🏭 LUXURY WATCH MASS SCRAPER")
@@ -52,7 +51,7 @@ class WatchScrapingRunner:
         print("✅ Incremental data collection")
         print("✅ Unique filename format: {Brand}-{Model}-{ID}.csv")
         print()
-    
+
     def confirm_execution(self) -> bool:
         """Get user confirmation before starting."""
         try:
@@ -61,14 +60,14 @@ class WatchScrapingRunner:
         except KeyboardInterrupt:
             print("\n⚠️  Operation cancelled by user")
             return False
-    
+
     def run_scraping(self, interactive: bool = True) -> bool:
         """
         Execute the mass scraping operation.
-        
+
         Args:
             interactive: Whether to show info and ask for confirmation
-            
+
         Returns:
             bool: True if scraping completed successfully
         """
@@ -77,22 +76,22 @@ class WatchScrapingRunner:
             if not self.confirm_execution():
                 print("Operation cancelled.")
                 return False
-        
+
         try:
             # Create and configure scraper
             scraper = MassWatchScraper(
                 output_dir=str(self.output_dir),
                 targets_file=str(self.targets_file),
-                progress_file=str(self.progress_file)
+                progress_file=str(self.progress_file),
             )
-            
+
             # Execute scraping
             logger.info("🚀 Starting mass watch scraping")
             scraper.run()
-            
+
             logger.info("✅ Mass scraping completed")
             return True
-            
+
         except KeyboardInterrupt:
             print("\n⚠️  Scraping interrupted by user")
             print("Progress has been saved. Run again to resume.")
@@ -105,17 +104,18 @@ class WatchScrapingRunner:
 def main():
     """CLI entry point for mass watch scraping."""
     logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s"
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
     )
-    
+
     try:
         runner = WatchScrapingRunner()
         runner.run_scraping(interactive=True)
-        
+
     except FileNotFoundError as e:
         print(f"❌ {e}")
-        print("💡 Run URL generation first: python -m src.collectors.watch.url_generator")
+        print(
+            "💡 Run URL generation first: python -m src.collectors.watch.url_generator"
+        )
     except Exception as e:
         logger.error(f"❌ Runner failed: {e}")
         raise
