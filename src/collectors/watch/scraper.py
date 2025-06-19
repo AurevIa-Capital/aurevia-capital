@@ -8,9 +8,8 @@ from various sources with proper error handling and rate limiting.
 import json
 import logging
 import os
-import random
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
@@ -21,17 +20,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from src.utils.selenium_utils import (
-    SeleniumDriverFactory,
-    check_cloudflare_challenge,
-    check_website_loaded_successfully,
-    safe_quit_driver,
-)
+from src.collectors.watch.base_scraper import BaseScraper
+from src.utils.selenium_utils import safe_quit_driver
 
-# Configure logging with structured format
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
 
 
@@ -45,12 +36,12 @@ class WatchTarget:
     watch_id: str
 
 
-class CloudflareBypassScraper:
+class CloudflareBypassScraper(BaseScraper):
     """Enhanced scraper with Cloudflare bypass capabilities."""
 
     def __init__(self, max_workers: int = 3, delay_range: Tuple[int, int] = (5, 15)):
+        super().__init__(delay_range)
         self.max_workers = max_workers
-        self.delay_range = delay_range
         self.session = requests.Session()
         self.setup_session()
 
@@ -72,14 +63,11 @@ class CloudflareBypassScraper:
             }
         )
 
-    def create_stealth_driver(self) -> webdriver.Chrome:
-        """Create a stealthy Chrome driver using the factory."""
-        return SeleniumDriverFactory.create_stealth_driver()
-
-    def random_delay(self):
-        """Add random delay between requests."""
-        delay = random.uniform(*self.delay_range)
-        time.sleep(delay)
+    def process_target(self, target: Dict, **kwargs) -> bool:
+        """Process a single watch scraping target."""
+        watch = WatchTarget(**target)
+        output_dir = kwargs.get('output_dir', 'data/watches')
+        return self.scrape_single_watch(watch, output_dir)
 
     def extract_price_data(self, driver: webdriver.Chrome) -> Optional[pd.DataFrame]:
         """Extract price data using multiple fallback methods."""
@@ -196,8 +184,8 @@ class CloudflareBypassScraper:
     ) -> bool:
         """Scrape a single watch with full error handling and incremental updates."""
         # Create filename in format {brand}-{model}.csv
-        brand_safe = watch.brand.replace(" ", "_").replace("/", "-").replace("\\", "-").replace(":", "-")
-        model_safe = watch.model_name.replace(" ", "_").replace("/", "-").replace("\\", "-").replace(":", "-")
+        brand_safe = self.make_filename_safe(watch.brand)
+        model_safe = self.make_filename_safe(watch.model_name)
         filename = f"{brand_safe}-{model_safe}.csv"
         output_file = os.path.join(output_dir, filename)
 
@@ -213,60 +201,19 @@ class CloudflareBypassScraper:
 
         driver = None
         try:
-            # Create driver
-            driver = self.create_stealth_driver()
-
-            # Navigate with retries
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    driver.get(watch.url)
-
-                    # Wait for page load
-                    WebDriverWait(driver, 30).until(
-                        lambda d: d.execute_script("return document.readyState")
-                        == "complete"
-                    )
-
-                    # Wait a bit more for dynamic content
-                    time.sleep(3)
-
-                    # First check if website loaded successfully
-                    if not check_website_loaded_successfully(driver):
-                        # Only if website didn't load properly, check for Cloudflare
-                        if check_cloudflare_challenge(driver):
-                            logger.warning("Cloudflare challenge detected, waiting...")
-                            time.sleep(random.uniform(20, 40))
-
-                            # Check again after waiting
-                            if check_cloudflare_challenge(driver):
-                                raise Exception("Cloudflare challenge not resolved")
-                        else:
-                            raise Exception(
-                                "Website failed to load properly (no Cloudflare detected)"
-                            )
-                    else:
-                        logger.info(
-                            "Website loaded successfully, proceeding with data extraction"
-                        )
-
-                    # Look for chart elements
-                    WebDriverWait(driver, 20).until(
-                        EC.any_of(
-                            EC.presence_of_element_located((By.TAG_NAME, "canvas")),
-                            EC.presence_of_element_located(
-                                (By.CSS_SELECTOR, "[data-chart]")
-                            ),
-                            EC.presence_of_element_located((By.CSS_SELECTOR, ".chart")),
-                        )
-                    )
-                    break
-
-                except Exception as e:
-                    if attempt == max_retries - 1:
-                        raise e
-                    logger.warning(f"Attempt {attempt + 1} failed, retrying...")
-                    self.random_delay()
+            # Create driver and navigate with retries
+            driver = self.create_browser_session()
+            
+            # Define chart elements to wait for
+            chart_elements = [
+                "canvas",
+                "[data-chart]", 
+                ".chart"
+            ]
+            
+            if not self.safe_navigate_with_retries(driver, watch.url, wait_for_elements=chart_elements):
+                logger.error(f"Failed to navigate to {watch.brand} {watch.model_name}")
+                return False
 
             # Extract data
             new_df = self.extract_price_data(driver)
@@ -345,31 +292,21 @@ class CloudflareBypassScraper:
     ) -> Dict[str, bool]:
         """Scrape multiple watches in parallel with rate limiting."""
         results = {}
-
-        # Create output directory
         os.makedirs(output_dir, exist_ok=True)
 
-        # Use ThreadPoolExecutor for controlled parallelism
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            # Submit all jobs
-            future_to_watch = {
-                executor.submit(self.scrape_single_watch, watch, output_dir): watch
-                for watch in watches
+        # Convert WatchTarget objects to dictionaries for base class compatibility
+        targets = [
+            {
+                'brand': watch.brand,
+                'model_name': watch.model_name,
+                'url': watch.url,
+                'watch_id': watch.watch_id
             }
+            for watch in watches
+        ]
 
-            # Collect results
-            for future in future_to_watch:
-                watch = future_to_watch[future]
-                try:
-                    success = future.result()
-                    results[f"{watch.brand}_{watch.model_name}"] = success
-                except Exception as e:
-                    print(
-                        f"❌ {watch.brand} {watch.model_name} - Parallel execution error: {e}"
-                    )
-                    results[f"{watch.brand}_{watch.model_name}"] = False
-
-        return results
+        # Use base class method for processing with brand-based delays
+        return self.process_multiple_targets(targets, brand_delay=60, output_dir=output_dir)
 
 
 def discover_watch_urls() -> List[WatchTarget]:

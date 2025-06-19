@@ -7,41 +7,24 @@ with watch targets for scraping.
 
 import json
 import logging
-import random
-import re
-import time
-from typing import Dict, List, Optional
-from urllib.parse import urljoin, urlparse
+from typing import Dict, List
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
+from bs4 import BeautifulSoup
 
-from src.utils.selenium_utils import (
-    SeleniumDriverFactory,
-    check_cloudflare_challenge,
-    check_website_loaded_successfully,
-    safe_quit_driver,
-)
+from src.collectors.watch.base_scraper import BaseScraper
+from src.utils.selenium_utils import safe_quit_driver
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, 
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
 
 
-class WatchDiscovery:
+class WatchDiscovery(BaseScraper):
     """Discover watch URLs from WatchCharts brand pages."""
     
     def __init__(self, delay_range: tuple = (3, 8)):
         """Initialize the discovery engine."""
-        self.delay_range = delay_range
-        self.base_url = "https://watchcharts.com"
+        super().__init__(delay_range)
         
-        # Brand URLs to scrape (exactly as provided by user)
+        # Brand URLs to scrape
         self.brand_urls = {
             # Top Tier
             "Patek Philippe": "https://watchcharts.com/watches/brand/patek+philippe",
@@ -60,165 +43,82 @@ class WatchDiscovery:
             "Seiko": "https://watchcharts.com/watches/brand/seiko"
         }
     
-    def random_delay(self):
-        """Add random delay between requests."""
-        delay = random.uniform(*self.delay_range)
-        logger.info(f"Waiting {delay:.1f} seconds...")
-        time.sleep(delay)
-    
-    def extract_model_name_from_title(self, title: str, brand: str) -> str:
-        """Extract clean model name from watch title."""
-        # Remove brand name from title
-        model_name = title.replace(brand, "").strip()
+    def process_target(self, target: Dict, **kwargs) -> bool:
+        """Process a single brand discovery target."""
+        brand = target['brand']
+        brand_url = target['url']
+        target_count = kwargs.get('target_count', 10)
         
-        # Remove common prefixes/suffixes
-        prefixes_to_remove = ["Watch", "Collection", "-", "–", "•"]
-        for prefix in prefixes_to_remove:
-            if model_name.startswith(prefix):
-                model_name = model_name[len(prefix):].strip()
-        
-        # Clean up extra whitespace
-        model_name = re.sub(r'\s+', ' ', model_name).strip()
-        
-        return model_name if model_name else title
-    
-    def extract_watch_id_from_url(self, url: str) -> str:
-        """Extract watch ID from WatchCharts URL."""
-        # Expected format: https://watchcharts.com/watch_model/{ID}-{slug}/overview
-        match = re.search(r'/watch_model/(\d+)-([^/]+)', url)
-        if match:
-            watch_id = match.group(1)
-            slug = match.group(2)
-            return f"{watch_id}-{slug}"
-        
-        # Fallback - use the entire path segment
-        path_parts = urlparse(url).path.split('/')
-        for part in path_parts:
-            if part and '-' in part and any(c.isdigit() for c in part):
-                return part
-        
-        return "unknown-watch"
+        return len(self.discover_watches_from_brand_page(brand, brand_url, target_count)) > 0
     
     def discover_watches_from_brand_page(self, brand: str, brand_url: str, target_count: int = 10) -> List[Dict]:
         """Discover watches from a brand page."""
         logger.info(f"🔍 Discovering watches for {brand}")
-        logger.info(f"URL: {brand_url}")
         
         driver = None
         watches = []
         
         try:
-            # Create driver
-            driver = SeleniumDriverFactory.create_discovery_driver(headless=True)
-            
-            # Navigate to brand page
-            driver.get(brand_url)
-            
-            # Wait for page load
-            WebDriverWait(driver, 30).until(
-                lambda d: d.execute_script("return document.readyState") == "complete"
-            )
-            time.sleep(3)
-            
-            # Check if page loaded successfully
-            if not check_website_loaded_successfully(driver):
-                if check_cloudflare_challenge(driver):
-                    logger.warning("Cloudflare challenge detected, waiting...")
-                    time.sleep(random.uniform(20, 40))
-                    
-                    if check_cloudflare_challenge(driver):
-                        raise Exception("Cloudflare challenge not resolved")
-                else:
-                    logger.warning("Page may not have loaded properly")
-                    # Continue anyway, might still be able to extract data
+            # Create driver and navigate with retries
+            driver = self.create_browser_session(headless=True)
             
             # Wait for watch listings to load
-            try:
-                WebDriverWait(driver, 20).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, "a[href*='/watch_model/']"))
-                )
-            except:
-                logger.warning("No watch model links found with standard selector")
-            
-            # Find all watch links - try multiple selectors
-            selectors_to_try = [
+            wait_elements = [
                 "a[href*='/watch_model/']",  # Direct watch model links
                 "a[href*='/watch/']",        # Alternative watch links
                 ".watch-card a",             # Watch card links
                 ".watch-item a",             # Watch item links
-                ".product-link",             # Product links
-                "a[title]",                  # Links with titles (might be watches)
             ]
             
-            watch_links = []
-            for selector in selectors_to_try:
-                try:
-                    links = driver.find_elements(By.CSS_SELECTOR, selector)
-                    if links:
-                        logger.info(f"Found {len(links)} potential links with selector: {selector}")
-                        watch_links.extend(links)
-                        break  # Use first successful selector
-                except Exception as e:
-                    logger.debug(f"Selector {selector} failed: {e}")
-                    continue
-            
-            if not watch_links:
-                logger.error(f"No watch links found for {brand}")
+            if not self.safe_navigate_with_retries(driver, brand_url, wait_for_elements=wait_elements):
+                logger.error(f"Failed to navigate to {brand} page")
                 return watches
             
-            logger.info(f"Processing {len(watch_links)} potential watch links")
+            # Parse page with BeautifulSoup for efficiency
+            page_source = driver.page_source
+            soup = BeautifulSoup(page_source, "html.parser")
             
-            # Extract watch information
-            processed_urls = set()  # Avoid duplicates
+            # Find watch model links
+            watch_links = soup.find_all("a", href=True)
+            processed_urls = set()
             
             for link in watch_links:
                 if len(watches) >= target_count:
                     break
                 
-                try:
-                    url = link.get_attribute('href')
-                    title = link.get_attribute('title') or link.text
-                    
-                    # Skip if no URL or not a watch model URL
-                    if not url or 'watch_model' not in url:
-                        continue
-                    
-                    # Skip duplicates
-                    if url in processed_urls:
-                        continue
-                    processed_urls.add(url)
-                    
-                    # Extract model name
-                    model_name = self.extract_model_name_from_title(title, brand)
-                    
-                    # Skip if no meaningful model name
-                    if not model_name or len(model_name.strip()) < 3:
-                        continue
-                    
-                    # Extract watch ID
-                    watch_id = self.extract_watch_id_from_url(url)
-                    
-                    # Ensure URL is absolute
-                    if url.startswith('/'):
-                        url = urljoin(self.base_url, url)
-                    
-                    # Add /overview if not present
-                    if not url.endswith('/overview'):
-                        url = url.rstrip('/') + '/overview'
-                    
-                    watch_data = {
-                        "brand": brand,
-                        "model_name": model_name,
-                        "url": url,
-                        "source": "generated"
-                    }
-                    
-                    watches.append(watch_data)
-                    logger.info(f"✅ Found: {brand} - {model_name}")
-                    
-                except Exception as e:
-                    logger.debug(f"Error processing link: {e}")
+                href = link.get("href", "")
+                if "/watch_model/" not in href:
                     continue
+                
+                # Build full URL and avoid duplicates
+                full_url = self.ensure_absolute_url(href)
+                if full_url in processed_urls:
+                    continue
+                processed_urls.add(full_url)
+                
+                # Extract and clean model name
+                title = link.get_text(strip=True)
+                if not title and link.parent:
+                    title = link.parent.get_text(strip=True)[:100]
+                
+                model_name = self.clean_model_name(title, brand)
+                if len(model_name) < 3:
+                    continue
+                
+                # Extract watch ID and combine with model name
+                watch_id = self.extract_watch_id_from_url(href)
+                if watch_id and watch_id != "unknown":
+                    model_name = f"{watch_id} - {model_name}"
+                
+                watch_data = {
+                    "brand": brand,
+                    "model_name": model_name,
+                    "url": full_url,
+                    "source": "generated"
+                }
+                
+                watches.append(watch_data)
+                logger.info(f"✅ Found: {brand} - {model_name}")
             
             logger.info(f"🎯 Discovered {len(watches)} watches for {brand}")
             return watches
@@ -244,11 +144,6 @@ class WatchDiscovery:
                 
                 logger.info(f"📊 {brand}: {len(brand_watches)}/10 watches discovered")
                 
-                # Longer delay between brands
-                if brand != list(self.brand_urls.keys())[-1]:  # Not the last brand
-                    logger.info("⏸️  Pausing 30 seconds before next brand...")
-                    time.sleep(30)
-                    
             except Exception as e:
                 logger.error(f"Failed to process {brand}: {e}")
                 continue
