@@ -1,1 +1,0 @@
-"""Core dashboard components."""

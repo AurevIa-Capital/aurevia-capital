@@ -1,1 +1,0 @@
-"""Plugin system for asset-specific UI components."""

@@ -1,1 +1,0 @@
-"""Data collection modules for various asset types."""
