@@ -13,7 +13,7 @@ A modern Streamlit-based luxury watch price forecasting application that analyze
 python -m src.collectors.watch.url_generator
 
 # Scrape price data (Stage 2)
-python -m src.collectors.watch.mass_runner
+python -m src.collectors.watch.scrape_runner
 
 # Run the dashboard
 python src/scripts/run_dashboard.py
@@ -83,13 +83,13 @@ python -m src.collectors.watch.url_generator
 # Outputs: data/scrape/url/watch_targets_100.json
 
 # Stage 2: Scrape historical price data
-python -m src.collectors.watch.mass_runner
+python -m src.collectors.watch.scrape_runner
 # Uses: WatchScrapingRunner → MassWatchScraper → CloudflareBypassScraper
 # Outputs: data/scrape/prices/{Brand}-{Model}-{ID}.csv
 
 # Individual components (for debugging)
-python -m src.collectors.watch.mass_scraper     # Direct mass scraping
-python -m src.collectors.watch.scraper          # Single watch scraping
+python -m src.collectors.watch.batch_scraper    # Direct mass scraping
+python -m src.collectors.watch.price_scraper    # Single watch scraping
 ```
 
 ### Streamlined Workflow Details
@@ -161,8 +161,8 @@ git push origin main
 
 #### Scraping Components
 - **WatchDiscovery**: `src/collectors/watch/watch_discovery.py` → URL discovery using BaseScraper
-- **CloudflareBypassScraper**: `src/collectors/watch/scraper.py` → price scraping using BaseScraper
-- **MassWatchScraper**: `src/collectors/watch/mass_scraper.py` → orchestration and progress tracking
+- **CloudflareBypassScraper**: `src/collectors/watch/price_scraper.py` → price scraping using BaseScraper
+- **MassWatchScraper**: `src/collectors/watch/batch_scraper.py` → orchestration and progress tracking
 
 #### Key Improvements (June 2024)
 - **Reduced Code Duplication**: 40% reduction in repetitive browser/navigation code

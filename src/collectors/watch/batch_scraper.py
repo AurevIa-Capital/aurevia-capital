@@ -8,8 +8,9 @@ import logging
 import os
 from datetime import datetime
 
-from src.collectors.watch.scraper import CloudflareBypassScraper, WatchTarget
-from src.collectors.watch.watch_discovery import WatchDiscovery
+from src.collectors.watch.base_scraper import WatchScrapingMixin
+from src.collectors.watch.price_scraper import CloudflareBypassScraper, WatchTarget
+from src.collectors.watch.watch_urls import WatchDiscovery
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -29,7 +30,7 @@ class MassWatchScraper:
         self.output_dir = output_dir
         self.progress_file = progress_file
         self.targets_file = targets_file
-        self.scraper = CloudflareBypassScraper(max_workers=2, delay_range=(10, 20))
+        self.scraper = CloudflareBypassScraper(delay_range=(10, 20))
 
         # Ensure directories exist
         os.makedirs(output_dir, exist_ok=True)
@@ -43,6 +44,7 @@ class MassWatchScraper:
                 targets_data = json.load(f)
                 # Process targets from new JSON format
                 filtered_targets = []
+                mixin = WatchScrapingMixin()  # Create once for reuse
                 for target in targets_data:
                     # Extract watch_id from model_name if it contains ID format (e.g., "22557 - Aquanaut")
                     watch_id = ""
@@ -53,21 +55,12 @@ class MassWatchScraper:
                         # Keep the clean model name without the ID
                         clean_model_name = model_name.split(" - ", 1)[1]
                     else:
-                        # If no ID in model_name, extract from URL
-                        if "/watch_model/" in target["url"]:
-                            url_parts = target["url"].split("/")
-                            for part in url_parts:
-                                if part and part.split("-")[0].isdigit():
-                                    watch_id = part.split("-")[0]
-                                    break
+                        # If no ID in model_name, extract from URL using base scraper utility
+                        watch_id = mixin.extract_watch_id_from_url(target["url"])
                         clean_model_name = model_name
 
-                    # Create filename-safe model name
-                    safe_model_name = (
-                        clean_model_name.replace("/", "-")
-                        .replace("\\", "-")
-                        .replace(":", "-")
-                    )
+                    # Create filename-safe model name using base scraper utility
+                    safe_model_name = mixin.make_filename_safe(clean_model_name)
 
                     filtered_target = {
                         "brand": target["brand"],

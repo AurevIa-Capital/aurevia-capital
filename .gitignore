@@ -7,6 +7,7 @@ conf/**/*credentials*
 
 # Data files policy: exclude by default unless explicitly requested
 data/**
+logs/**
 
 # Keep all .gitkeep files
 !.gitkeep
@@ -190,3 +191,4 @@ config/secrets/
 
 ####################
 .claude/settings.local.json
+./data/scrape/scraping_progress.json

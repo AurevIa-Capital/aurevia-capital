@@ -9,7 +9,7 @@ with configurable options and comprehensive progress tracking.
 import logging
 from pathlib import Path
 
-from .mass_scraper import MassWatchScraper
+from src.collectors.watch.batch_scraper import MassWatchScraper
 
 logger = logging.getLogger(__name__)
 

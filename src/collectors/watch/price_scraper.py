@@ -8,14 +8,11 @@ from various sources with proper error handling and rate limiting.
 import json
 import logging
 import os
-import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
-import requests
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 
 from src.collectors.watch.base_scraper import BaseScraper
 from src.utils.selenium_utils import safe_quit_driver
@@ -36,29 +33,8 @@ class WatchTarget:
 class CloudflareBypassScraper(BaseScraper):
     """Enhanced scraper with Cloudflare bypass capabilities."""
 
-    def __init__(self, max_workers: int = 3, delay_range: Tuple[int, int] = (5, 15)):
+    def __init__(self, delay_range: Tuple[int, int] = (5, 15)):
         super().__init__(delay_range)
-        self.max_workers = max_workers
-        self.session = requests.Session()
-        self.setup_session()
-
-    def setup_session(self):
-        """Setup requests session with realistic headers."""
-        self.session.headers.update(
-            {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.5",
-                "Accept-Encoding": "gzip, deflate, br",
-                "DNT": "1",
-                "Connection": "keep-alive",
-                "Upgrade-Insecure-Requests": "1",
-                "Sec-Fetch-Dest": "document",
-                "Sec-Fetch-Mode": "navigate",
-                "Sec-Fetch-Site": "none",
-                "Cache-Control": "max-age=0",
-            }
-        )
 
     def process_target(self, target: Dict, **kwargs) -> bool:
         """Process a single watch scraping target."""
@@ -114,20 +90,7 @@ class CloudflareBypassScraper(BaseScraper):
         except Exception as e:
             print(f"Chart.js extraction failed: {e}")
 
-        # Method 2: DOM scraping fallback
-        try:
-            price_elements = driver.find_elements(
-                By.CSS_SELECTOR, "[data-price], .price-value, .chart-data"
-            )
-            if price_elements:
-                # Extract data from DOM elements
-                # This would need to be customized based on WatchCharts' actual DOM structure
-                print("Found price elements in DOM, but extraction not implemented")
-        except Exception as e:
-            print(f"DOM extraction failed: {e}")
-
-        # Method 3: Network monitoring (would require additional setup)
-        # Could intercept XHR requests for chart data
+        # No fallback methods currently implemented
 
         return None
 
@@ -310,101 +273,3 @@ class CloudflareBypassScraper(BaseScraper):
         return self.process_multiple_targets(
             targets, brand_delay=60, output_dir=output_dir
         )
-
-
-def discover_watch_urls() -> List[WatchTarget]:
-    """Discover watch URLs for 10 brands with 10 watches each."""
-
-    # Pre-defined targets (you would need to expand this list)
-    # These would ideally be discovered dynamically from WatchCharts
-    watch_targets = [
-        # Rolex (10 watches)
-        WatchTarget(
-            "Rolex",
-            "Submariner 124060",
-            "https://watchcharts.com/watch_model/21813-rolex-submariner-124060/overview",
-            "21813-rolex-submariner-124060",
-        ),
-        WatchTarget(
-            "Rolex",
-            "GMT-Master II 126710BLNR",
-            "https://watchcharts.com/watch_model/1234-rolex-gmt-master-ii-126710blnr/overview",
-            "1234-rolex-gmt-master-ii-126710blnr",
-        ),
-        # Add 8 more Rolex watches...
-        # Omega (10 watches)
-        WatchTarget(
-            "Omega",
-            "Speedmaster Professional",
-            "https://watchcharts.com/watch_model/30921-omega-speedmaster-professional-moonwatch-310-30-42-50-01-002/overview",
-            "30921-omega-speedmaster-professional-moonwatch-310-30-42-50-01-002",
-        ),
-        # Add 9 more Omega watches...
-        # Tudor (10 watches)
-        WatchTarget(
-            "Tudor",
-            "Black Bay 58",
-            "https://watchcharts.com/watch_model/326-tudor-black-bay-58-79030n/overview",
-            "326-tudor-black-bay-58-79030n",
-        ),
-        # Add 9 more Tudor watches...
-        # Add 7 more brands with 10 watches each...
-    ]
-
-    return watch_targets
-
-
-def main():
-    """Main function to scrape 100 watches."""
-    print("🚀 Starting enhanced watch scraper for 100 watches")
-
-    # Discover targets
-    watches = discover_watch_urls()
-    print(f"📋 Found {len(watches)} watch targets")
-
-    # Create scraper with conservative settings
-    scraper = CloudflareBypassScraper(
-        max_workers=2,  # Conservative to avoid rate limiting
-        delay_range=(10, 20),  # Longer delays for Cloudflare
-    )
-
-    # Group by brand for organized scraping
-    brands = {}
-    for watch in watches:
-        if watch.brand not in brands:
-            brands[watch.brand] = []
-        brands[watch.brand].append(watch)
-
-    # Scrape brand by brand
-    all_results = {}
-    for brand, brand_watches in brands.items():
-        print(f"\n📦 Processing {brand} ({len(brand_watches)} watches)")
-
-        brand_results = scraper.scrape_watches_parallel(brand_watches)
-        all_results.update(brand_results)
-
-        # Longer pause between brands
-        if brand != list(brands.keys())[-1]:  # Not the last brand
-            print("⏸️  Pausing 60 seconds before next brand...")
-            time.sleep(60)
-
-    # Summary
-    print("\n📊 SCRAPING SUMMARY")
-    print("=" * 50)
-
-    successful = sum(1 for success in all_results.values() if success)
-    total = len(all_results)
-
-    print(f"✅ Successful: {successful}/{total}")
-    print(f"❌ Failed: {total - successful}/{total}")
-    print(f"📈 Success rate: {successful / total * 100:.1f}%")
-
-    # Group by brand for detailed report
-    for brand in brands.keys():
-        brand_results = {k: v for k, v in all_results.items() if k.startswith(brand)}
-        brand_success = sum(1 for success in brand_results.values() if success)
-        print(f"  {brand}: {brand_success}/{len(brand_results)}")
-
-
-if __name__ == "__main__":
-    main()
