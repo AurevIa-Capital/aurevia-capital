@@ -5,17 +5,16 @@ Plugin-based dashboard for multiple asset types.
 """
 
 import streamlit as st
-import logging
 from typing import Dict, Any
 
 from .core.plugin_manager import PluginManager
 from .core.config import DashboardConfig
 from .components.sidebar import render_sidebar
 from .components.header import render_header
+from src.utils.logging_config import setup_logging
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Configure centralized logging
+logger = setup_logging("dashboard")
 
 # Page configuration
 st.set_page_config(

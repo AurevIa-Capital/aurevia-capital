@@ -4,18 +4,15 @@ Mass Watch Scraper - Scrape 100 luxury watches efficiently with Cloudflare bypas
 """
 
 import json
-import logging
 import os
 from datetime import datetime
 
 from src.collectors.watch.base_scraper import WatchScrapingMixin
 from src.collectors.watch.price_scraper import CloudflareBypassScraper, WatchTarget
 from src.collectors.watch.watch_urls import WatchDiscovery
+from src.utils.logging_config import get_scraping_logger
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+logger = get_scraping_logger()
 
 
 class MassWatchScraper:

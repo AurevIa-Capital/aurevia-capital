@@ -6,12 +6,12 @@ This module provides a clean interface for running the mass watch scraping pipel
 with configurable options and comprehensive progress tracking.
 """
 
-import logging
 from pathlib import Path
 
 from src.collectors.watch.batch_scraper import MassWatchScraper
+from src.utils.logging_config import get_scraping_logger
 
-logger = logging.getLogger(__name__)
+logger = get_scraping_logger()
 
 
 class WatchScrapingRunner:
@@ -103,9 +103,7 @@ class WatchScrapingRunner:
 
 def main():
     """CLI entry point for mass watch scraping."""
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-    )
+    # Logging already configured via get_scraping_logger()
 
     try:
         runner = WatchScrapingRunner()

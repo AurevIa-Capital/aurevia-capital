@@ -16,9 +16,9 @@ from app.routers import assets, forecasts, collectors
 from app.dependencies import get_container
 from app.middleware.logging import LoggingMiddleware
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Configure centralized logging
+from src.utils.logging_config import setup_logging
+logger = setup_logging("api_server")
 
 # Create FastAPI app
 app = FastAPI(

@@ -214,10 +214,8 @@ class BaseScraper(WatchScrapingMixin, ABC):
 
     def setup_logging(self) -> None:
         """Setup logging configuration."""
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        )
+        # Logging now handled by centralized logging_config
+        pass
 
     @abstractmethod
     def process_target(self, target: Dict, **kwargs) -> bool:

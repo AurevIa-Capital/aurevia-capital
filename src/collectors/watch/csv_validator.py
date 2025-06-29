@@ -7,13 +7,14 @@ files with fewer than the minimum required rows for reliable forecasting.
 """
 
 import csv
-import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-logger = logging.getLogger(__name__)
+from src.utils.logging_config import get_validation_logger
+
+logger = get_validation_logger()
 
 
 class CSVDataValidator:
