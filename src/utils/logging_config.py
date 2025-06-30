@@ -19,6 +19,7 @@ Usage:
 """
 
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Union
 
@@ -34,7 +35,8 @@ def setup_logging(
     json_format: bool = False,
     rotation: str = "10 MB",
     retention: str = "30 days",
-    compression: str = "zip"
+    compression: str = "zip",
+    use_timestamp: bool = True
 ) -> "logger":
     """
     Setup centralized logging configuration for pipeline components.
@@ -59,6 +61,8 @@ def setup_logging(
         How long to keep log files (e.g., "30 days", "1 week")
     compression : str
         Compression format for rotated logs ("zip", "gz", etc.)
+    use_timestamp : bool
+        Add timestamp to log filenames to prevent overwriting
     
     Returns:
     -------
@@ -67,7 +71,7 @@ def setup_logging(
     
     Examples:
     --------
-    # Basic usage
+    # Basic usage with timestamp
     >>> logger = setup_logging("multi_horizon_training")
     >>> logger.info("Training started")
     
@@ -78,6 +82,10 @@ def setup_logging(
     # Debug mode
     >>> logger = setup_logging("debug_session", log_level="DEBUG")
     >>> logger.debug("Detailed debugging information")
+    
+    # Without timestamp (legacy mode)
+    >>> logger = setup_logging("visualization", use_timestamp=False)
+    >>> logger.info("Creating visualizations")
     """
     
     # Remove all existing handlers to start fresh
@@ -116,20 +124,27 @@ def setup_logging(
     
     # File logging setup
     if enable_file:
-        # Determine log file name
-        if component_name:
-            log_file = log_path / f"{component_name}.log"
+        # Determine log file name with optional timestamp
+        if use_timestamp:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            if component_name:
+                log_file = log_path / f"{component_name}_{timestamp}.log"
+            else:
+                log_file = log_path / f"pipeline_{timestamp}.log"
         else:
-            log_file = log_path / "pipeline.log"
+            if component_name:
+                log_file = log_path / f"{component_name}.log"
+            else:
+                log_file = log_path / "pipeline.log"
         
         if json_format:
             file_format = (
-                '{"time": "{time:YYYY-MM-DD HH:mm:ss}", '
+                '{{"time": "{time:YYYY-MM-DD HH:mm:ss}", '
                 '"level": "{level}", '
                 '"component": "{extra[component]}", '
                 '"function": "{function}", '
                 '"line": {line}, '
-                '"message": "{message}"}'
+                '"message": "{message}"}}'
             )
         else:
             file_format = (
@@ -231,6 +246,11 @@ def get_validation_logger(**kwargs) -> "logger":
 def get_scraping_logger(**kwargs) -> "logger":
     """Get logger for web scraping components."""
     return get_logger("web_scraping", **kwargs)
+
+
+def get_visualization_logger(**kwargs) -> "logger":
+    """Get logger for visualization components."""
+    return get_logger("visualization", **kwargs)
 
 
 # Global logger for quick access

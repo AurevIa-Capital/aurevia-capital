@@ -15,7 +15,7 @@ import pandas as pd
 from selenium import webdriver
 
 from src.collectors.watch.base_scraper import BaseScraper
-from src.utils.selenium_utils import safe_quit_driver
+from src.collectors.selenium_utils import safe_quit_driver
 
 logger = logging.getLogger(__name__)
 

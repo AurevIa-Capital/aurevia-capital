@@ -12,7 +12,7 @@ from typing import Dict, List
 from bs4 import BeautifulSoup
 
 from src.collectors.watch.base_scraper import BaseScraper
-from src.utils.selenium_utils import safe_quit_driver
+from src.collectors.selenium_utils import safe_quit_driver
 
 logger = logging.getLogger(__name__)
 
