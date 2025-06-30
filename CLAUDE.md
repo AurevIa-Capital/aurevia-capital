@@ -4,362 +4,473 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A modern luxury watch price forecasting platform that analyzes historical price data and generates predictions using multiple machine learning models. The system features a modular architecture with FastAPI backend, Streamlit dashboard, and comprehensive data collection pipeline with Cloudflare bypass capabilities.
+A modern luxury watch price forecasting platform that analyzes historical price data and generates predictions using multiple machine learning models. The system features a modular architecture with design patterns, event-driven monitoring, FastAPI backend, Streamlit dashboard, and comprehensive data collection pipeline with Cloudflare bypass capabilities.
 
 ## Quick Start
 
+### Unified CLI Interface
 ```bash
-# Stage 1: Generate watch URLs (100 watches, 10 per brand)
+# Use the unified CLI for all operations
+python src/cli.py --help
+
+# Data collection
+python src/cli.py scrape urls                     # Generate watch URLs
+python src/cli.py scrape prices                   # Scrape price data
+
+# Data processing and training
+python src/cli.py pipeline --max-files 20         # Run data pipeline
+python src/cli.py train --horizons 7 14 30        # Train ML models
+
+# Full pipeline with new architecture
+python src/cli.py full --horizons 7 14 30 --models linear xgboost --max-assets 10
+
+# Serving
+python src/cli.py serve dashboard                  # Start Streamlit dashboard
+python src/cli.py serve api                       # Start FastAPI server
+
+# Visualization
+python src/cli.py visualize --max-assets 5        # Create visualizations
+```
+
+### Legacy Direct Commands (still supported)
+```bash
+# Direct module execution (legacy)
 python -m src.collectors.watch.watch_urls
-
-# Stage 2: Scrape price data 
 python -m src.collectors.watch.scrape_runner
-
-# Stage 3: Run data pipeline
 python -m src.pipeline.run_pipeline --max-files 20
-
-# Stage 4: Train ML models (trains on all 87 CSV files by default)
 python -m src.ml.multi_horizon_training --horizons 7 14 30
-
-# Run the dashboard
 python src/scripts/run_dashboard.py
-
-# Run the API (alternative interface)
 python src/scripts/run_api.py
 ```
 
 ## Current Architecture
 
-### Core Application Structure
-- **Dashboard Entry**: `src/scripts/run_dashboard.py` → launches Streamlit dashboard  
-- **API Entry**: `src/scripts/run_api.py` → launches FastAPI backend
-- **Data Collection**: `src/collectors/watch/` → watch price scraping pipeline
-- **Data Pipeline**: `src/pipeline/` → unified data processing and feature engineering
-- **Machine Learning**: `src/ml/` → model training, evaluation, and prediction
-- **API Layer**: `src/api/` → FastAPI backend with routers and middleware
-- **Dashboard**: `src/dashboard/` → Streamlit interface with plugin architecture
-- **Core Services**: `src/core/` → shared domain logic and schemas
-- **Analysis**: `src/analysis/` → EDA and visualization
-- **Utilities**: `src/utils/` → shared utilities and visualization organization tools
+### Repository Structure
+The codebase is organized with modern design patterns and consolidated modules:
 
-### Watch Data Collection Pipeline
-
-#### Stage 1: URL Discovery
-- **Script**: `python -m src.collectors.watch.watch_urls`
-- **Purpose**: Discovers 100 watch URLs (10 per brand) from WatchCharts
-- **Output**: `data/scrape/url/watch_targets_100.json`
-- **Brands**: Rolex, Patek Philippe, Omega, Tudor, Audemars Piguet, etc.
-
-#### Stage 2: Price Scraping  
-- **Script**: `python -m src.collectors.watch.scrape_runner`
-- **Purpose**: Scrapes historical price data for each watch
-- **Output**: `data/scrape/prices/{Brand}-{Model}-{ID}.csv`
-- **Features**: Progress tracking, resume capability, Cloudflare bypass
-
-### Watch Collector Components
-
-#### `base_scraper.py` - Foundation
-- **BaseScraper**: Abstract base class with shared scraping utilities
-- **WatchScrapingMixin**: Common browser management, navigation, text processing
-- **Key Methods**: `safe_navigate_with_retries()`, `make_filename_safe()`, `extract_watch_id_from_url()`
-
-#### `watch_urls.py` - URL Discovery
-- **WatchDiscovery**: Discovers watch URLs from brand pages
-- **Brands Covered**: 10 luxury watch brands with 10 watches each
-- **Output Format**: JSON with brand, model_name, url, source fields
-
-#### `price_scraper.py` - Price Extraction
-- **CloudflareBypassScraper**: Extracts price data using Chart.js injection
-- **Features**: Incremental updates, data merging, error screenshots
-- **Output Format**: CSV with date and price(SGD) columns
-
-#### `batch_scraper.py` - Orchestration
-- **MassWatchScraper**: Manages batch processing of multiple watches
-- **Features**: Progress tracking, brand-based delays, resume capability
-- **Progress File**: `data/scrape/scraping_progress.json`
-
-#### `scrape_runner.py` - CLI Interface
-- **WatchScrapingRunner**: User-friendly interface for mass scraping
-- **Features**: Configuration validation, interactive prompts, error handling
-
-### Data Directory Structure
 ```
-data/
-├── scrape/
-│   ├── url/
-│   │   └── watch_targets_100.json    # Stage 1: Watch URLs and metadata
-│   ├── prices/
-│   │   ├── Rolex-Submariner-638.csv      # Stage 2: Price data per watch
-│   │   ├── Omega-Speedmaster-30921.csv   # Unique files per watch
-│   │   └── ...
-│   └── scraping_progress.json        # Progress tracking
-├── output/
-│   ├── featured_data.csv             # Enhanced dataset with 80+ features
-│   ├── brand_summary.csv             # Performance analysis by watch brand
-│   ├── processing_steps.csv          # Detailed pipeline execution log
-│   ├── feature_selection_summary.csv # Feature importance and selection results
-│   ├── multi_horizon_comparison.json # Multi-horizon model comparison
-│   ├── models/                       # Trained models (1, 3, 7, 14 day horizons)
-│   │   ├── models_1_day/
-│   │   ├── models_3_day/
-│   │   ├── models_7_day/
-│   │   ├── models_14_day/
-│   │   └── model_comparison.csv
-│   ├── visualizations/               # Organized model performance and forecasting plots
-│   │   ├── {watch_model}/           # Individual watch visualization directories
-│   │   │   ├── {ml_model}/          # Model-specific plots (linear, ridge, xgboost, etc.)
-│   │   │   │   ├── predictions.png      # Model predictions vs actual
-│   │   │   │   ├── residuals.png        # Residual analysis
-│   │   │   │   ├── importance.png       # Feature importance
-│   │   │   │   ├── complete_forecast.png # Complete time series forecast
-│   │   │   │   └── decomposition.png    # Seasonal decomposition
-│   │   │   └── general/
-│   │   │       └── data_split.png       # Train/validation/test split
-│   │   └── aggregate/               # Cross-model analysis plots
-│   │       ├── complexity_vs_performance.png
-│   │       ├── performance_comparison.png
-│   │       └── model_rankings.png
-└── images/                           # Watch reference images
+src/
+├── cli.py                          # Unified CLI entry point
+├── core/                          # Design patterns and architecture
+│   ├── model_factory.py           # Factory pattern for ML models
+│   ├── config_builder.py          # Builder pattern for configuration
+│   ├── data_store.py              # Centralized data management
+│   ├── pipeline_strategy.py       # Strategy pattern for pipeline components
+│   ├── event_system.py            # Observer pattern for monitoring
+│   ├── command_pattern.py         # Command pattern for CLI operations
+│   └── pipeline_orchestrator.py   # Main orchestrator combining all patterns
+├── collectors/
+│   ├── selenium_utils.py          # Selenium utilities
+│   └── watch/                     # Watch data collection pipeline
+├── pipeline/                      # Data processing and feature engineering
+│   ├── config.py                  # Configuration classes
+│   ├── loader.py                  # Data loading
+│   ├── processor.py               # Data processing
+│   ├── features.py                # Feature engineering
+│   └── assets/                    # Asset-specific processing
+├── ml/                           # Machine learning components
+│   ├── base.py                   # Base classes for ML models
+│   ├── models.py                 # All ML model implementations
+│   ├── training.py               # Training logic and validation
+│   ├── visualization.py          # Visualization classes
+│   └── multi_horizon_training.py # Multi-horizon training orchestrator
+├── api/                          # FastAPI backend
+├── dashboard/                    # Streamlit interface
+├── scripts/                      # Standalone scripts
+└── utils/                        # Shared utilities
 ```
 
-### File Naming Standards
-- **Watch Targets**: `watch_targets_100.json`
-- **Price Data**: `{Brand}-{Model}-{watch_id}.csv` (e.g., `Rolex-Submariner-638.csv`)
-- **Progress Files**: `scraping_progress.json`
+### Core Design Patterns
 
-### Modular Application Architecture
+#### Model Factory Pattern (`src/core/model_factory.py`)
+Centralized model creation and management:
+- `ModelFactory`: Creates model instances with validation
+- `ModelConfigBuilder`: Fluent API for model configuration
+- Eliminates code duplication in model instantiation
+- Supports all model types: linear, ensemble, time series
 
-The system features a modular architecture with multiple interface layers:
+#### Configuration Builder Pattern (`src/core/config_builder.py`)
+Fluent API for building pipeline configurations:
+- `PipelineConfigBuilder`: Main configuration builder
+- `TrainingConfigBuilder`: Specialized for training workflows
+- Validation and error handling built-in
+- CLI argument integration and JSON loading/saving
 
-#### API Layer (`src/api/`)
-```
-src/api/
-├── main.py           # FastAPI application entry point
-└── app/
-    ├── dependencies.py    # Dependency injection
-    ├── middleware/
-    │   └── logging.py    # Request logging middleware
-    └── routers/
-        ├── assets.py     # Asset management endpoints
-        ├── collectors.py # Data collection endpoints
-        └── forecasts.py  # Forecasting endpoints
-```
+#### Centralized Data Store (`src/core/data_store.py`)
+Unified data management interface:
+- `DataStore`: Abstract interface for data operations
+- `FileSystemDataStore`: File-based implementation
+- Data managers for different types: scraped, processed, models
+- Metadata tracking and organized storage
 
-#### Dashboard Layer (`src/dashboard/`)
-```
-src/dashboard/
-├── main.py           # Streamlit application entry point
-├── components/       # Reusable dashboard components
-├── config/          # Dashboard configuration
-├── core/            # Dashboard core logic
-└── plugins/         # Plugin architecture for asset types
-```
+#### Strategy Pattern (`src/core/pipeline_strategy.py`)
+Modular and interchangeable pipeline components:
+- `PipelineStrategy`: Abstract base for pipeline stages
+- `StrategyFactory`: Creates strategies for different stages
+- Stage-specific strategies: Data Loading, Processing, Feature Engineering, Training, Visualization
+- Enables swapping pipeline components without code changes
 
-#### Data Pipeline (`src/pipeline/`)
-```
-src/pipeline/
-├── run_pipeline.py   # CLI entry point with argument parsing
-├── config.py         # All configuration (paths, processing, features, models)
-├── base.py           # Abstract base classes and factory functions
-├── loader.py         # Data loading and discovery (multi-asset support)
-├── processor.py      # Data processing (cleaning, validation, interpolation, outliers)
-├── features.py       # Feature engineering and selection (80+ features)
-├── assets/           # Asset-specific implementations
-│   └── watch.py      # Complete watch processing and feature engineering
-└── demo.py           # Demonstration script
-```
+#### Observer Pattern (`src/core/event_system.py`)
+Event-driven monitoring and logging:
+- `EventBus`: Central event dispatcher
+- Built-in observers: `LoggingObserver`, `ProgressObserver`, `MetricsObserver`, `FileLogObserver`
+- Real-time pipeline visibility and monitoring
+- Comprehensive event types for all pipeline operations
 
-#### Key Pipeline Features
+#### Command Pattern (`src/core/command_pattern.py`)
+Structured CLI operations with event support:
+- `Command`: Abstract base for all operations
+- `CommandInvoker`: Executes commands with event notifications
+- `CommandFactory`: Creates commands from CLI arguments
+- Support for undo/redo and composite operations
 
-**Configuration-Driven Design**:
-- **Centralized settings** in `PipelineConfig`
-- **Asset-agnostic architecture** (easily extensible to stocks, crypto)
-- **Flexible parameters** for all processing steps
+#### Pipeline Orchestrator (`src/core/pipeline_orchestrator.py`)
+Unified orchestrator combining all design patterns:
+- Coordinates Strategy, Observer, and Command patterns
+- Event-driven pipeline execution
+- Comprehensive monitoring and metrics collection
+- Integration with Factory, Builder, and Data Store patterns
 
-**Advanced Data Processing**:
-- **Multiple interpolation methods**: backfill, linear, spline, seasonal, hybrid
-- **Sophisticated outlier detection**: IQR, Z-score, Isolation Forest
-- **Comprehensive validation**: 15+ quality checks per asset
+## Machine Learning Architecture
 
-**Enhanced Feature Engineering**:
-- **80+ features** (vs original 15): temporal, technical, momentum, volatility
-- **Watch-specific features**: luxury market dynamics, brand tiers, seasonality
-- **Cross-asset features**: market-relative positioning
+### Consolidated ML Structure
+All ML functionality is organized in focused modules:
 
-**Intelligent Feature Selection**:
-- **Multiple algorithms**: correlation, mutual info, Random Forest, Lasso, RFE
-- **Hybrid approach** combining best methods
-- **Feature importance analysis** and correlation detection
+#### `src/ml/models.py` - All Model Implementations
+Contains all model classes:
+- **Linear Models**: LinearRegressionModel, RidgeModel, LassoModel, PolynomialRegressionModel
+- **Ensemble Models**: RandomForestModel, XGBoostModel, GradientBoostingModel
+- **Time Series Models**: ARIMAModel, SARIMAModel
+- **Usage**: `from src.ml.models import LinearRegressionModel, XGBoostModel`
 
-**Watch Domain Expertise**:
-- **Brand classification**: Ultra-luxury (Patek), High-luxury (Rolex), Mid-luxury (Tudor)
-- **Watch type detection**: Sports vs Dress watches
-- **Luxury market seasonality**: Holiday seasons, watch fairs, year-end effects
-- **Price tier analysis**: Entry/Mid/High/Ultra luxury segments
+#### `src/ml/training.py` - Complete Training System
+Contains all training functionality:
+- **Validation**: TimeSeriesValidator with comprehensive metrics
+- **Hyperparameter Tuning**: Grid search, random search, Bayesian optimization
+- **Training Orchestration**: ModelTrainer for single/multi-asset training
+- **Usage**: `from src.ml.training import ModelTrainer, TimeSeriesValidator`
 
-### Machine Learning Models
-The system employs multiple forecasting models with multi-horizon training using **RMSE as the primary performance metric** for model selection:
-- **Linear Regression**: Baseline linear trend analysis
-- **Ridge Regression**: Regularized linear model for stability
-- **Random Forest**: Ensemble method for complex patterns
-- **XGBoost**: Gradient boosting for high accuracy
+#### `src/ml/visualization.py` - All Visualization Classes
+Contains all visualization functionality:
+- **Performance Plots**: PerformanceVisualizer for metrics and comparisons
+- **Forecasting Plots**: ForecastingVisualizer for predictions and residuals
+- **Comparison Plots**: ComparisonVisualizer for cross-model analysis
+- **Enhanced Plots**: EnhancedForecastingVisualizer for advanced analysis
+- **Usage**: `from src.ml.visualization import PerformanceVisualizer, ForecastingVisualizer`
 
-**Model Selection**: Best models for each watch are selected based on **RMSE (Root Mean Square Error)** on validation data, providing better sensitivity to larger prediction errors compared to MAE.
-
-#### Multi-Horizon Training
-Models are trained for multiple prediction horizons with automatic file detection:
+### Multi-Horizon Training
+Models are trained for multiple prediction horizons using **RMSE as the primary performance metric**:
 - **1-day**: Short-term price movements
-- **3-day**: Medium-term trends
+- **3-day**: Medium-term trends  
 - **7-day**: Weekly forecasts
 - **14-day**: Bi-weekly projections
 - **30-day**: Monthly forecasts
 
-**Key Features**:
-- **Automatic File Detection**: Trains on all CSV files in `data/scrape/prices/` by default (87 files)
-- **Dual Logging**: Outputs to both terminal and timestamped log files in `./logs/`
-- **Configurable Horizons**: Specify custom prediction horizons
-- **Resume Capability**: Can restart interrupted training sessions
-- **Comprehensive Metrics**: Multi-horizon performance comparison
-
 **Training Commands**:
 ```bash
-# Train all horizons on all files (default)
-python -m src.ml.multi_horizon_training
+# Using unified CLI (recommended)
+python src/cli.py train --horizons 7 14 30
+python src/cli.py train --models linear xgboost --max-assets 50
 
-# Train specific horizons on all files
+# Using new architecture
+python src/cli.py full --horizons 7 14 30 --models linear xgboost
+
+# Direct module execution
 python -m src.ml.multi_horizon_training --horizons 7 14 30
-
-# Train with custom parameters
-python -m src.ml.multi_horizon_training --horizons 1 7 --models linear xgboost --max-assets 50
-
-# Analyze existing results only
 python -m src.ml.multi_horizon_training --analyze-only
 ```
 
-#### Model Outputs
-- **Trained Models**: Saved to `data/output/models_{horizon}/`
-- **Performance Metrics**: Model comparison in `model_comparison.csv`
-- **Multi-Horizon Comparison**: Cross-horizon analysis in `multi_horizon_comparison.json`
-- **Training Logs**: Detailed logs in `./logs/multi_horizon_training_[timestamp].log`
-- **Visualizations**: Organized plots in `data/output/visualizations/{watch_model}/{ml_model}/`
+## Data Collection Pipeline
+
+### Watch Data Collection Components
+Located in `src/collectors/watch/`:
+
+#### Core Components
+- **`base_scraper.py`**: Abstract base class with shared scraping utilities
+- **`watch_urls.py`**: Discovers 100 watch URLs (10 per brand) from WatchCharts  
+- **`price_scraper.py`**: Extracts historical price data using Chart.js injection
+- **`batch_scraper.py`**: Manages batch processing with progress tracking
+- **`scrape_runner.py`**: User-friendly CLI interface for mass scraping
+
+#### Selenium Integration
+- **`selenium_utils.py`**: Selenium utilities with domain-specific placement
+- **Features**: Cloudflare bypass, stealth configuration, retry logic
+- **Usage**: `from src.collectors.selenium_utils import SeleniumDriverFactory`
+
+### Data Pipeline (`src/pipeline/`)
+Advanced data processing with 80+ engineered features:
+
+```bash
+# Using unified CLI
+python src/cli.py pipeline --max-files 20 --interpolation-method spline
+
+# Using new architecture with full monitoring
+python src/cli.py full --max-files 20
+
+# Direct execution  
+python -m src.pipeline.run_pipeline --max-files 20
+```
+
+**Key Features**:
+- **Multiple interpolation methods**: backfill, linear, spline, seasonal, hybrid
+- **Sophisticated outlier detection**: IQR, Z-score, Isolation Forest
+- **Watch domain expertise**: Brand tiers, seasonality, luxury market dynamics
+- **Feature selection**: Multiple algorithms with hybrid approach
 
 ## Development Commands
 
-### Watch Data Collection
+### Using Unified CLI (Recommended)
 ```bash
-# Generate watch URLs (Stage 1)
-python -m src.collectors.watch.watch_urls
+# Data collection
+python src/cli.py scrape urls                     # Generate watch URLs
+python src/cli.py scrape prices                   # Scrape price data
 
-# Scrape price data (Stage 2)
+# Data processing  
+python src/cli.py pipeline --max-files 20         # Process data
+python src/cli.py pipeline --interpolation-method spline --outlier-method isolation_forest
+
+# Model training
+python src/cli.py train --horizons 7 14 30        # Train models
+python src/cli.py train --models linear xgboost --max-assets 50
+python src/cli.py train --analyze-only            # Analyze existing results
+
+# Full pipeline with new architecture
+python src/cli.py full --horizons 7 14 30 --models linear xgboost --max-assets 10
+
+# Visualization
+python src/cli.py visualize --max-assets 5        # Create visualizations
+python src/cli.py visualize --specific-assets "Rolex-Submariner-638"
+
+# Serving
+python src/cli.py serve dashboard                  # Start Streamlit dashboard
+python src/cli.py serve api                       # Start FastAPI server
+```
+
+### Legacy Direct Commands
+```bash
+# Data collection (legacy)
+python -m src.collectors.watch.watch_urls
 python -m src.collectors.watch.scrape_runner
 
-# Debug individual components
-python -m src.collectors.watch.batch_scraper    # Direct batch processing
-python -m src.collectors.watch.price_scraper    # Individual watch scraping
-```
-
-### Data Pipeline Commands
-
-#### Simple Usage (Recommended)
-```bash
-# Run complete pipeline with defaults
+# Pipeline processing (legacy)
 python -m src.pipeline.run_pipeline --max-files 20
 
-# Run complete pipeline with custom settings
-python -m src.pipeline.run_pipeline --max-files 20 --interpolation-method spline --outlier-method isolation_forest
+# Model training (legacy)
+python -m src.ml.multi_horizon_training --horizons 7 14 30
 
-# Run dashboard  
+# Visualization (legacy)
+python -m src.ml.create_visualizations --max-assets 5
+
+# Serving (legacy)
 python src/scripts/run_dashboard.py
-
-# Run API server
 python src/scripts/run_api.py
-
-# Test pipeline with demo
-cd src/pipeline && python demo.py
 ```
 
-#### Advanced Usage (Custom Configuration)
+## Data Structure
+
+### Input Data
+```
+data/scrape/
+├── url/watch_targets_100.json          # Watch URLs and metadata
+├── prices/{Brand}-{Model}-{ID}.csv     # Historical price data per watch
+└── scraping_progress.json              # Progress tracking
+```
+
+### Output Data  
+```
+data/output/
+├── featured_data.csv                   # Enhanced dataset (80+ features)
+├── brand_summary.csv                   # Performance analysis by brand
+├── models/                            # Trained models by horizon
+│   ├── models_7_day/
+│   ├── models_14_day/
+│   └── model_comparison.csv
+└── visualizations/                    # Organized visualization structure
+    ├── {watch_model}/{ml_model}/      # Individual model plots
+    └── aggregate/                     # Cross-model analysis
+```
+
+## Technical Infrastructure
+
+### Design Pattern Architecture
+The codebase implements multiple design patterns for maintainability and extensibility:
+
+#### Factory Pattern
 ```python
-# Custom configuration example
-from src.pipeline import run_pipeline, PipelineConfig
+from src.core.model_factory import ModelFactory
 
-# Create custom configuration
-config = PipelineConfig()
-config.processing.interpolation_method = "spline"
-config.processing.outlier_method = "isolation_forest"  
-config.features.lag_periods = [1, 2, 3, 7, 14, 30]
-config.modeling.feature_selection = True
-
-# Run with custom settings
-results = run_pipeline(asset_type="watch", config=config, max_files=20)
+# Create models using factory
+model = ModelFactory.create_model('xgboost', config)
+available_models = ModelFactory.get_available_models()
 ```
 
-#### Component-Level Usage
+#### Builder Pattern
 ```python
-# Use individual components
-from src.pipeline import DataLoader, DataProcessor, FeatureEngineer, PipelineConfig
-from src.pipeline.assets.watch import WatchProcessor, WatchFeatureEngineer
+from src.core.config_builder import PipelineConfigBuilder
 
-config = PipelineConfig()
-
-# Core components
-loader = DataLoader(config, "watch")
-processor = DataProcessor(config, "watch")  
-engineer = FeatureEngineer(config, "watch")
-
-# Asset-specific components
-watch_processor = WatchProcessor(config, "watch")
-watch_engineer = WatchFeatureEngineer(config, "watch")
-
-# Process step by step
-raw_data, load_report = loader.process(max_files=10)
-clean_data, process_report = processor.process(raw_data)
-featured_data, feature_report = engineer.process(clean_data)
+# Build configuration with fluent API
+config = (PipelineConfigBuilder()
+          .with_data_paths("data", "scrape/prices", "output")
+          .with_processing_options("spline", "isolation_forest")
+          .with_modeling_options(test_size=0.2, random_state=42)
+          .build())
 ```
 
-### Visualization Commands
+#### Strategy Pattern
+```python
+from src.core.pipeline_strategy import StrategyFactory, PipelineStage
 
-#### Generate Organized Visualizations
-```bash
-# Create visualizations for all trained models (uses organized structure)
-python -m src.ml.create_visualizations
-
-# Create visualizations with options
-python -m src.ml.create_visualizations --max-assets 5 --skip-aggregate --verbose
-
-# Create visualizations for specific assets
-python -m src.ml.create_visualizations --specific-assets "Rolex-Submariner-638,Omega-Speedmaster-30921"
-
-# Multi-horizon analysis visualizations
-python -m src.ml.multi_horizon_visualizer --asset "Rolex-Submariner-638" --horizons 7 14 30
+# Create and execute strategies
+strategy = StrategyFactory.create_strategy(PipelineStage.DATA_LOADING, config)
+result = strategy.execute(input_data, max_files=20)
 ```
 
-#### Reorganize Existing Visualizations  
-```bash
-# Reorganize flat visualization files into organized structure
-python src/utils/reorganize_visualizations.py --execute
+#### Observer Pattern
+```python
+from src.core.event_system import create_default_event_system, EventType
 
-# Preview reorganization without making changes (dry run)
-python src/utils/reorganize_visualizations.py
-
-# Reorganize with custom directory
-python src/utils/reorganize_visualizations.py --base-dir custom/visualizations --execute
+# Create event system with monitoring
+event_bus = create_default_event_system()
+event_bus.publish_event(EventType.PIPELINE_STARTED, source="MyComponent")
 ```
 
-#### Visualization Structure Benefits
-- **Clean Organization**: Each watch gets its own directory with model subdirectories
-- **Easy Navigation**: Hierarchical structure makes finding specific plots simple
-- **Scalable**: Supports unlimited watches and models without cluttering
-- **Consistent Naming**: Short, descriptive filenames replace long concatenated names
-- **Future-Proof**: All new visualizations automatically use organized structure
+#### Command Pattern
+```python
+from src.core.command_pattern import CommandFactory, CommandInvoker
+
+# Execute commands with event support
+command_invoker = CommandInvoker(event_bus)
+command = CommandFactory.create_training_command(args)
+result = command_invoker.execute_command(command)
+```
+
+#### Pipeline Orchestrator
+```python
+from src.core.pipeline_orchestrator import create_orchestrator
+
+# Unified pipeline execution with all patterns
+orchestrator = create_orchestrator(config)
+result = orchestrator.execute_full_pipeline(
+    horizons=[7, 14, 30],
+    models=['linear', 'xgboost'],
+    max_assets=10
+)
+```
+
+### Centralized Logging System
+Loguru-based logging with automatic configuration:
+
+```python
+# Training operations
+from src.utils.logging_config import get_training_logger
+logger = get_training_logger()
+
+# Data validation
+from src.utils.logging_config import get_validation_logger
+logger = get_validation_logger()
+
+# Web scraping
+from src.utils.logging_config import get_scraping_logger
+logger = get_scraping_logger()
+```
+
+**Log Files**: `./logs/ml_training.log`, `./logs/data_pipeline.log`, `./logs/web_scraping.log`
+
+### Organized Visualization System
+Hierarchical structure for all visualizations:
+
+```python
+from src.utils.visualization_utils import get_organized_visualization_path
+
+# Individual watch-model visualization
+viz_path = get_organized_visualization_path(
+    "data/output/visualizations", 
+    "Rolex-Submariner-638", 
+    "xgboost", 
+    "predictions"
+)
+# → data/output/visualizations/Rolex-Submariner-638/xgboost/predictions.png
+```
+
+### Core Services (`src/core/`)
+Modern architecture with design patterns:
+- **`model_factory.py`**: Factory pattern for model creation
+- **`config_builder.py`**: Builder pattern for configuration
+- **`data_store.py`**: Centralized data management
+- **`pipeline_strategy.py`**: Strategy pattern for modularity
+- **`event_system.py`**: Observer pattern for monitoring
+- **`command_pattern.py`**: Command pattern for CLI
+- **`pipeline_orchestrator.py`**: Unified orchestrator
 
 ## Development Standards
 
 ### Code Quality Requirements
 - **Type Hints**: All functions must use proper type annotations
-- **Logging**: Use centralized Loguru-based logging (see Technical Infrastructure)
+- **Logging**: Use centralized logging system (see Technical Infrastructure)
 - **Error Handling**: Implement specific exception handling with context
 - **Documentation**: Add docstrings for all modules and functions
+
+### Legacy Code Removal Policy
+**CRITICAL REQUIREMENT**: Always remove legacy, deprecated, and duplicated code after refactoring or implementing new functions.
+
+#### When to Remove Legacy Code:
+1. **After implementing design patterns** - Remove old instantiation code
+2. **After refactoring modules** - Remove old interfaces and duplicated functions
+3. **After consolidating functionality** - Remove scattered implementations
+4. **After adding new abstractions** - Remove hard-coded implementations
+
+#### Legacy Code Removal Checklist:
+- [ ] Remove old factory functions (e.g., `create_model_factory()` in base.py)
+- [ ] Remove duplicated configuration logic
+- [ ] Remove hard-coded file paths after introducing DataStore
+- [ ] Remove scattered model instantiation after implementing ModelFactory
+- [ ] Update imports to use new patterns
+- [ ] Remove deprecated command-line interfaces
+- [ ] Clean up unused utility functions
+
+### Import Best Practices
+Use these import patterns with the current architecture:
+
+```python
+# Design Patterns Architecture
+from src.core.model_factory import ModelFactory, ModelConfigBuilder
+from src.core.config_builder import PipelineConfigBuilder, TrainingConfigBuilder
+from src.core.data_store import create_data_store, ScrapedDataManager
+
+# Strategy Pattern
+from src.core.pipeline_strategy import (
+    StrategyFactory, PipelineStage, create_default_strategies
+)
+
+# Observer Pattern
+from src.core.event_system import (
+    EventBus, EventType, EventPriority, create_default_event_system,
+    LoggingObserver, ProgressObserver, MetricsObserver
+)
+
+# Command Pattern
+from src.core.command_pattern import (
+    CommandFactory, CommandInvoker, Command, CompositeCommand
+)
+
+# Pipeline Orchestrator (combines all patterns)
+from src.core.pipeline_orchestrator import create_orchestrator, PipelineOrchestrator
+
+# ML models (consolidated)
+from src.ml.models import LinearRegressionModel, XGBoostModel
+
+# Training (consolidated)  
+from src.ml.training import ModelTrainer, TimeSeriesValidator
+
+# Visualization (consolidated)
+from src.ml.visualization import PerformanceVisualizer, ForecastingVisualizer
+
+# Collectors (domain-specific)
+from src.collectors.selenium_utils import SeleniumDriverFactory
+
+# DEPRECATED - DO NOT USE:
+# from src.ml.base import create_model_factory  # Use ModelFactory instead
+```
 
 ### Git Workflow
 **CRITICAL REQUIREMENT**: Always commit after major changes and update CLAUDE.md
@@ -374,254 +485,97 @@ git push origin main
 
 #### Commit Triggers (MUST commit after):
 1. **File refactoring or renaming**
-2. **Adding new features or components** 
+2. **Adding new features or components**
 3. **Fixing bugs or issues**
-4. **Updating dependencies or configurations**
-5. **Updating this CLAUDE.md file**
-
-#### Commit Message Guidelines
-- Use clear, descriptive commit messages
-- **NEVER include**: "🤖 Generated with Claude Code" or "Co-Authored-By: Claude <noreply@anthropic.com>"
-- Use present tense ("Add feature" not "Added feature")
-- Focus on what was changed, not implementation details
+4. **Updating this CLAUDE.md file**
 
 #### Data Files Policy
 - **NEVER commit files in `data/` directory** unless explicitly requested
-- Data files are large and change frequently
 - Use `.gitignore` to exclude `data/` by default
 
-### CLAUDE.md Maintenance
-**CRITICAL REQUIREMENT**: Update this file whenever making major changes
-
-#### Update Guidelines
-1. **Focus on current state** - Explain what exists now, not what changed
-2. **Remove outdated sections** - Delete historical change logs and completed task lists
-3. **Keep it concise** - Focus on essential information for development
-4. **Update after refactoring** - Always sync with code changes
-5. **Commit immediately** - Always commit CLAUDE.md updates
-
-#### What to Update
-- File names and paths when refactoring
-- Command examples when scripts change
-- Architecture descriptions when restructuring
-- Development workflows when processes change
-
-## Technical Infrastructure
-
-### Centralized Logging System
-The system uses a **Loguru-based centralized logging** configuration that eliminates manual logging setup across components:
-
-**Key Features**:
-- **Zero Configuration**: Components get pre-configured loggers with one import
-- **Component-Specific Files**: Each component writes to its own log file (e.g., `ml_training.log`, `data_pipeline.log`)
-- **Automatic Rotation**: Log files rotate at 10MB with 30-day retention and compression
-- **Dual Output**: Simultaneous terminal and file logging with color-coded console output
-- **Structured Logging**: Optional JSON format for log analysis and monitoring
-- **Thread-Safe**: Concurrent logging across pipeline components
-
-**Usage Examples**:
-```python
-# Multi-horizon training
-from src.utils.logging_config import get_training_logger
-logger = get_training_logger()
-logger.info("Training {model} on {files} files", model="xgboost", files=87)
-
-# Data validation
-from src.utils.logging_config import get_validation_logger
-logger = get_validation_logger()
-logger.info("Validated {count} CSV files", count=87)
-
-# Web scraping
-from src.utils.logging_config import get_scraping_logger
-logger = get_scraping_logger()
-logger.info("Scraped {watches} watches from {brand}", watches=10, brand="Rolex")
-
-# Custom component
-from src.utils.logging_config import setup_logging
-logger = setup_logging("custom_component", json_format=True)
-logger.info("Custom operation completed", success=True, duration=45.2)
-```
-
-**Log File Locations**:
-- `./logs/ml_training.log` → Multi-horizon training and model operations
-- `./logs/data_pipeline.log` → Data processing and feature engineering
-- `./logs/data_validation.log` → CSV validation and data quality checks  
-- `./logs/web_scraping.log` → Watch price scraping operations
-- `./logs/aurevia_pipeline.log` → General pipeline operations
-
-### Organized Visualization System
-The system features a **comprehensive organized visualization architecture** that automatically creates clean, hierarchical directory structures for all ML model outputs:
-
-**Key Features**:
-- **Organized Structure**: Hierarchical directories organized by watch model and ML model
-- **Automatic Path Generation**: Utility functions automatically create organized paths
-- **Clean Filenames**: Short, descriptive names instead of long concatenated strings
-- **Scalable Design**: Supports unlimited watches and models without directory clutter
-- **Consistent Organization**: All visualization modules use the same organized structure
-
-**Utility Functions**:
-```python
-# Create organized visualization paths
-from src.utils.visualization_utils import get_organized_visualization_path, get_organized_aggregate_path
-
-# Individual watch-model visualization
-viz_path = get_organized_visualization_path(
-    "data/output/visualizations", 
-    "Rolex-Submariner-638", 
-    "xgboost", 
-    "predictions"
-)
-# → data/output/visualizations/Rolex-Submariner-638/xgboost/predictions.png
-
-# Aggregate visualization
-agg_path = get_organized_aggregate_path(
-    "data/output/visualizations", 
-    "performance_comparison"
-)
-# → data/output/visualizations/aggregate/performance_comparison.png
-```
-
-**Reorganization Tool**:
-```bash
-# Reorganize existing flat visualization files into organized structure
-python src/utils/reorganize_visualizations.py --execute
-
-# Preview what would be reorganized (dry run)
-python src/utils/reorganize_visualizations.py
-```
-
-**Directory Structure**:
-```
-data/output/visualizations/
-├── Rolex-Submariner-638/
-│   ├── linear/
-│   │   ├── predictions.png
-│   │   ├── residuals.png
-│   │   ├── importance.png
-│   │   └── complete_forecast.png
-│   ├── xgboost/
-│   │   └── ... (same structure)
-│   └── general/
-│       └── data_split.png
-├── Omega-Speedmaster-30921/
-│   └── ... (same structure)
-└── aggregate/
-    ├── complexity_vs_performance.png
-    ├── performance_comparison.png
-    └── model_rankings.png
-```
-
-### Web Scraping Capabilities
-- **Cloudflare Bypass**: Stealth browser configuration with anti-detection
-- **Rate Limiting**: Built-in delays (10-20 seconds) between requests
-- **Progress Persistence**: All scraping progress saved continuously
-- **Resume Capability**: Can restart from interruption points
-- **Incremental Updates**: Only scrapes newer data points
-- **Error Handling**: Comprehensive retry logic and error screenshots
-
-### Dependencies
-- **Core**: streamlit, pandas, numpy, matplotlib, seaborn, plotly
-- **ML**: scikit-learn, xgboost, statsmodels
-- **API**: fastapi, uvicorn, pydantic
-- **Logging**: loguru (centralized logging system)
-- **Scraping**: selenium, beautifulsoup4, webdriver-manager (optional)
-- **Development**: pytest, black, isort, mypy
-
-### Pipeline Outputs
-The enhanced ML pipeline generates comprehensive outputs:
-
-#### Core Data Files
-- `data/output/featured_data.csv` → Enhanced dataset with 80+ engineered features
-- `data/scrape/prices/*.csv` → Raw historical price data (input)
-
-#### Analysis Reports  
-- `data/output/brand_summary.csv` → Performance analysis by watch brand
-- `data/output/processing_steps.csv` → Detailed pipeline execution log
-- `data/output/feature_selection_summary.csv` → Feature importance and selection results
-- `data/output/model_summary.csv` → ML model performance metrics
-
-#### Visualization Outputs
-- `data/output/visualizations/` → **Organized visualization directory structure**
-  - `{watch_model}/{ml_model}/` → Individual watch-model visualization directories
-    - `predictions.png` → Model predictions vs actual values
-    - `residuals.png` → Residual analysis and error distribution
-    - `importance.png` → Feature importance rankings
-    - `complete_forecast.png` → Complete time series forecast with context
-    - `decomposition.png` → Seasonal decomposition analysis
-  - `{watch_model}/general/` → Watch-level general plots
-    - `data_split.png` → Train/validation/test split visualization
-  - `aggregate/` → Cross-model analysis and comparison plots
-    - `complexity_vs_performance.png` → Model complexity vs performance trade-offs
-    - `performance_comparison.png` → Overall model performance comparison
-    - `model_rankings.png` → Model ranking across all assets
-
-#### Configuration and Logs
-- **Centralized Logging System**: All components use Loguru-based unified logging
-- **Component-Specific Logs**: Separate log files for each pipeline component in `./logs/`
-- **Automatic Log Rotation**: 10MB file size rotation with 30-day retention
-- **Structured Logging**: JSON format support for advanced log analysis
-- **Dual Output**: Both terminal and file logging with consistent formatting
-- Pipeline execution logs with structured logging
-- Data quality scores and validation reports
-- Feature correlation matrices and selection rationale
-
-## Troubleshooting
-
-### Common Issues
-- **Missing Data Files**: Run the complete data pipeline (URL generation → scraping → ML processing)
-- **Scraping Failures**: Check ChromeDriver installation and Cloudflare status
-- **Import Errors**: Ensure all requirements are installed (`pip install -r requirements.txt`)
-- **Path Issues**: Run commands from project root directory
-- **Feature Engineering Errors**: Check data quality and minimum data requirements (30+ points recommended)
-- **Pipeline Configuration**: Verify `PipelineConfig` settings match your data structure
-- **API Issues**: Check if FastAPI server is running on correct port (8000)
-- **Dashboard Issues**: Ensure Streamlit dependencies are installed
-
-### Debug Information
-- **Structured Logging**: All components use Python logging with detailed execution traces
-- **Dual Logging System**: Multi-horizon training outputs to both terminal and timestamped log files
-- **Training Logs**: Complete training history saved in `./logs/multi_horizon_training_[timestamp].log`
-- **Error Screenshots**: Saved to `data/scrape/prices/error/` directory
-- **Progress Tracking**: Real-time progress in `data/scrape/scraping_progress.json`
-- **Pipeline Reports**: Detailed execution logs in `data/output/processing_steps.csv`
-- **Data Quality Metrics**: Validation scores and outlier detection results
-
-## Extending the Pipeline
+## Extending the Platform
 
 ### Adding New Asset Types
-The modular architecture supports easy extension to new asset classes:
-
 ```bash
 # Create new asset module
 mkdir -p src/pipeline/assets/stocks
-touch src/pipeline/assets/stocks/__init__.py
 touch src/pipeline/assets/stocks/stock.py
 ```
 
 ### Custom Feature Engineering
 ```python
-# Extend base feature engineer
 from src.pipeline.features import FeatureEngineer
 
 class CustomFeatureEngineer(FeatureEngineer):
     def add_custom_features(self, df, price_column):
-        # Add your domain-specific features
         df['custom_indicator'] = df[price_column].rolling(10).mean()
         return df
 ```
 
-### Configuration Customization
+### Custom Models
 ```python
-# Create asset-specific configuration
-from src.pipeline.config import PipelineConfig
+# Add to src/ml/models.py
+from .models import BaseTimeSeriesModel
 
-config = PipelineConfig()
-config.assets.asset_type = "stocks"
-config.assets.price_column = "close_price"
-config.features.lag_periods = [1, 5, 22]  # Daily, weekly, monthly
+class CustomModel(BaseTimeSeriesModel):
+    def _fit_model(self, X, y):
+        # Custom training logic
+        pass
+
+# Register with factory
+from src.core.model_factory import ModelFactory
+ModelFactory.register_model('custom', CustomModel, 'ensemble')
 ```
+
+### Custom Pipeline Strategies
+```python
+from src.core.pipeline_strategy import PipelineStrategy, StrategyFactory
+
+class CustomStrategy(PipelineStrategy):
+    def execute(self, input_data, **kwargs):
+        # Custom pipeline logic
+        pass
+
+# Register with factory
+StrategyFactory.register_strategy(PipelineStage.DATA_PROCESSING, 'custom', CustomStrategy)
+```
+
+### Custom Event Observers
+```python
+from src.core.event_system import EventObserver
+
+class CustomObserver(EventObserver):
+    def handle_event(self, event):
+        # Custom event handling
+        pass
+
+# Subscribe to event bus
+event_bus.subscribe(CustomObserver())
+```
+
+## Troubleshooting
+
+### Common Issues
+- **Import Errors**: Use new consolidated import paths (see Import Best Practices)
+- **Missing Data Files**: Run complete pipeline: `python src/cli.py scrape urls` → `scrape prices` → `pipeline` → `train`
+- **CLI Issues**: Use `python src/cli.py --help` for all available commands
+- **Path Issues**: Run commands from project root directory
+- **Dependencies**: Ensure `pip install -r requirements.txt`
+
+### Debug Information
+- **Centralized Logs**: Check `./logs/` directory for component-specific logs
+- **Training Logs**: Multi-horizon training creates timestamped log files
+- **Progress Tracking**: Scraping progress in `data/scrape/scraping_progress.json`
+- **Event Monitoring**: Use event system for real-time pipeline visibility
+- **Visualization**: Use `--verbose` flag with CLI commands for detailed output
+
+### New Architecture Debugging
+- **Event System**: Monitor events in real-time with built-in observers
+- **Strategy Pattern**: Swap strategies for different pipeline behaviors
+- **Command Pattern**: Review command execution history and results
+- **Orchestrator**: Use comprehensive monitoring and metrics collection
 
 ## Repository Information
 - **Remote Origin**: https://github.com/AurevIa-Capital/aurevia-capital.git
-- **Main Branch**: main
-- **Development Practice**: Commit regularly and push frequently for backup and collaboration
+- **Main Branch**: main  
+- **Development Practice**: Commit regularly with descriptive messages
