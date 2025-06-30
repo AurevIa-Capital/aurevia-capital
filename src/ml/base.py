@@ -354,30 +354,4 @@ class SklearnTimeSeriesModel(BaseTimeSeriesModel):
         return self.estimator.get_params()
 
 
-def create_model_factory(config: PipelineConfig) -> Dict[str, type]:
-    """
-    Create a factory of available model types.
-    
-    Parameters:
-    ----------
-    config : PipelineConfig
-        Pipeline configuration
-        
-    Returns:
-    -------
-    Dict[str, type]
-        Dictionary mapping model names to model classes
-    """
-    from .models.linear import LinearRegressionModel, RidgeModel, LassoModel
-    from .models.ensemble import RandomForestModel, XGBoostModel
-    from .models.time_series import ARIMAModel, SARIMAModel
-    
-    return {
-        'linear': LinearRegressionModel,
-        'ridge': RidgeModel,
-        'lasso': LassoModel,
-        'random_forest': RandomForestModel,
-        'xgboost': XGBoostModel,
-        'arima': ARIMAModel,
-        'sarima': SARIMAModel
-    }
+# Legacy factory function removed - use src.core.model_factory.ModelFactory instead
