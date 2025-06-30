@@ -24,10 +24,8 @@ from src.ml.base import BaseTimeSeriesModel
 from src.ml.run_training import load_featured_data
 from src.ml.visualization import (
     ForecastingVisualizer,
-    ModelComparisonVisualizer,
+    ComparisonVisualizer as ModelComparisonVisualizer,
     PerformanceVisualizer,
-)
-from src.ml.visualization.enhanced_forecasting_plots import (
     EnhancedForecastingVisualizer,
 )
 
@@ -35,6 +33,7 @@ from src.ml.visualization.enhanced_forecasting_plots import (
 project_root = Path(__file__).parent.parent.parent
 
 from src.utils.logging_config import get_training_logger
+from src.utils.visualization_utils import get_organized_visualization_path, get_organized_aggregate_path
 
 logger = get_training_logger()
 
@@ -131,9 +130,8 @@ def create_individual_asset_plots(
             logger.info(f"  Creating plots for {model_name}...")
 
             # 1. ENHANCED: Full forecast with complete context (MAIN IMPROVEMENT)
-            full_forecast_file = (
-                Path(output_dir)
-                / f"{safe_asset_name}_{model_name}_complete_forecast.png"
+            full_forecast_file = get_organized_visualization_path(
+                output_dir, asset_name, model_name, "complete_forecast"
             )
             full_fig = forecaster.plot_full_forecast_with_context(
                 full_data=featured_data,
@@ -181,9 +179,8 @@ def create_individual_asset_plots(
 
                     # Forecast decomposition
                     if enhanced_data.get("decomposition"):
-                        decomp_file = (
-                            Path(output_dir)
-                            / f"{safe_asset_name}_{model_name}_decomposition.png"
+                        decomp_file = get_organized_visualization_path(
+                            output_dir, asset_name, model_name, "decomposition"
                         )
                         decomp_fig = enhanced_viz.plot_forecast_decomposition(
                             y_true=enhanced_data["actual_values"],
@@ -217,7 +214,9 @@ def create_individual_asset_plots(
 
     # 4. Data split visualization (one per asset)
     try:
-        split_file = Path(output_dir) / f"{safe_asset_name}_data_split.png"
+        split_file = get_organized_visualization_path(
+            output_dir, asset_name, "general", "data_split"
+        )
         split_fig = forecaster.plot_train_val_test_split(
             data=featured_data,
             train_size=0.65,
@@ -320,7 +319,9 @@ def create_aggregate_visualizations(
                 }
 
             if avg_metrics:
-                perf_file = Path(output_dir) / "overall_performance_comparison.png"
+                perf_file = get_organized_aggregate_path(
+                    output_dir, "overall_performance_comparison"
+                )
                 perf_fig = perf_viz.plot_metrics_comparison(
                     avg_metrics,
                     title="Overall Model Performance Comparison",
@@ -385,7 +386,9 @@ def create_aggregate_visualizations(
                 }
 
             if avg_complexity:
-                complexity_file = Path(output_dir) / "complexity_vs_performance.png"
+                complexity_file = get_organized_aggregate_path(
+                    output_dir, "complexity_vs_performance"
+                )
                 complexity_fig = perf_viz.plot_model_complexity_vs_performance(
                     avg_complexity,
                     title="Model Training Time vs Performance Trade-off",

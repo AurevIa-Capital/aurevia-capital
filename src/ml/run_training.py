@@ -19,8 +19,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 from src.ml.base import create_model_factory
-from src.ml.training.trainer import ModelTrainer
-from src.ml.training.tuner import HyperparameterTuner
+from src.ml.training import ModelTrainer, HyperparameterTuner
 from src.pipeline.config import PipelineConfig
 
 # Add project root to path
@@ -301,10 +300,11 @@ def run_training(
 
         # Find best model for this asset
         if asset_successful:
-            best_result = trainer.get_best_model(asset_successful, metric="mae")
+            best_result = trainer.get_best_model(asset_successful, metric="rmse")
             if best_result:
                 best_models_by_asset[asset_name] = {
                     "model_name": best_result.model_name,
+                    "rmse": best_result.validation_result.metrics.get("rmse", "N/A"),
                     "mae": best_result.validation_result.metrics.get("mae", "N/A"),
                     "training_time": best_result.training_time,
                 }
@@ -375,7 +375,7 @@ def run_training(
         logger.info("\nBest models by asset:")
         for asset_name, best_info in best_models_by_asset.items():
             logger.info(
-                f"  {asset_name}: {best_info['model_name']} (MAE: {best_info['mae']})"
+                f"  {asset_name}: {best_info['model_name']} (RMSE: {best_info['rmse']}, MAE: {best_info['mae']})"
             )
 
     logger.info(f"\nResults saved to: {output_path}")

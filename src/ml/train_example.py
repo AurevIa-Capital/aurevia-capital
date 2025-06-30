@@ -221,7 +221,7 @@ def example_single_asset_training():
 
         test_predictions = best_result.model.predict(X_test)
 
-        from src.ml.training.validator import TimeSeriesValidator
+        from src.ml.training import TimeSeriesValidator
 
         validator = TimeSeriesValidator(config)
         test_metrics = validator.calculate_metrics(y_test.values, test_predictions)
