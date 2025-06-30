@@ -40,7 +40,7 @@ python src/scripts/run_api.py
 - **Dashboard**: `src/dashboard/` → Streamlit interface with plugin architecture
 - **Core Services**: `src/core/` → shared domain logic and schemas
 - **Analysis**: `src/analysis/` → EDA and visualization
-- **Utilities**: `src/utils/` → shared utilities
+- **Utilities**: `src/utils/` → shared utilities and visualization organization tools
 
 ### Watch Data Collection Pipeline
 
@@ -105,7 +105,20 @@ data/
 │   │   ├── models_7_day/
 │   │   ├── models_14_day/
 │   │   └── model_comparison.csv
-│   ├── visualizations/               # Model performance and forecasting plots
+│   ├── visualizations/               # Organized model performance and forecasting plots
+│   │   ├── {watch_model}/           # Individual watch visualization directories
+│   │   │   ├── {ml_model}/          # Model-specific plots (linear, ridge, xgboost, etc.)
+│   │   │   │   ├── predictions.png      # Model predictions vs actual
+│   │   │   │   ├── residuals.png        # Residual analysis
+│   │   │   │   ├── importance.png       # Feature importance
+│   │   │   │   ├── complete_forecast.png # Complete time series forecast
+│   │   │   │   └── decomposition.png    # Seasonal decomposition
+│   │   │   └── general/
+│   │   │       └── data_split.png       # Train/validation/test split
+│   │   └── aggregate/               # Cross-model analysis plots
+│   │       ├── complexity_vs_performance.png
+│   │       ├── performance_comparison.png
+│   │       └── model_rankings.png
 └── images/                           # Watch reference images
 ```
 
@@ -185,11 +198,13 @@ src/pipeline/
 - **Price tier analysis**: Entry/Mid/High/Ultra luxury segments
 
 ### Machine Learning Models
-The system employs multiple forecasting models with multi-horizon training:
+The system employs multiple forecasting models with multi-horizon training using **RMSE as the primary performance metric** for model selection:
 - **Linear Regression**: Baseline linear trend analysis
 - **Ridge Regression**: Regularized linear model for stability
 - **Random Forest**: Ensemble method for complex patterns
 - **XGBoost**: Gradient boosting for high accuracy
+
+**Model Selection**: Best models for each watch are selected based on **RMSE (Root Mean Square Error)** on validation data, providing better sensitivity to larger prediction errors compared to MAE.
 
 #### Multi-Horizon Training
 Models are trained for multiple prediction horizons with automatic file detection:
@@ -226,7 +241,7 @@ python -m src.ml.multi_horizon_training --analyze-only
 - **Performance Metrics**: Model comparison in `model_comparison.csv`
 - **Multi-Horizon Comparison**: Cross-horizon analysis in `multi_horizon_comparison.json`
 - **Training Logs**: Detailed logs in `./logs/multi_horizon_training_[timestamp].log`
-- **Visualizations**: Comprehensive plots in `data/output/visualizations/`
+- **Visualizations**: Organized plots in `data/output/visualizations/{watch_model}/{ml_model}/`
 
 ## Development Commands
 
@@ -301,6 +316,42 @@ raw_data, load_report = loader.process(max_files=10)
 clean_data, process_report = processor.process(raw_data)
 featured_data, feature_report = engineer.process(clean_data)
 ```
+
+### Visualization Commands
+
+#### Generate Organized Visualizations
+```bash
+# Create visualizations for all trained models (uses organized structure)
+python -m src.ml.create_visualizations
+
+# Create visualizations with options
+python -m src.ml.create_visualizations --max-assets 5 --skip-aggregate --verbose
+
+# Create visualizations for specific assets
+python -m src.ml.create_visualizations --specific-assets "Rolex-Submariner-638,Omega-Speedmaster-30921"
+
+# Multi-horizon analysis visualizations
+python -m src.ml.multi_horizon_visualizer --asset "Rolex-Submariner-638" --horizons 7 14 30
+```
+
+#### Reorganize Existing Visualizations  
+```bash
+# Reorganize flat visualization files into organized structure
+python src/utils/reorganize_visualizations.py --execute
+
+# Preview reorganization without making changes (dry run)
+python src/utils/reorganize_visualizations.py
+
+# Reorganize with custom directory
+python src/utils/reorganize_visualizations.py --base-dir custom/visualizations --execute
+```
+
+#### Visualization Structure Benefits
+- **Clean Organization**: Each watch gets its own directory with model subdirectories
+- **Easy Navigation**: Hierarchical structure makes finding specific plots simple
+- **Scalable**: Supports unlimited watches and models without cluttering
+- **Consistent Naming**: Short, descriptive filenames replace long concatenated names
+- **Future-Proof**: All new visualizations automatically use organized structure
 
 ## Development Standards
 
@@ -398,6 +449,68 @@ logger.info("Custom operation completed", success=True, duration=45.2)
 - `./logs/web_scraping.log` → Watch price scraping operations
 - `./logs/aurevia_pipeline.log` → General pipeline operations
 
+### Organized Visualization System
+The system features a **comprehensive organized visualization architecture** that automatically creates clean, hierarchical directory structures for all ML model outputs:
+
+**Key Features**:
+- **Organized Structure**: Hierarchical directories organized by watch model and ML model
+- **Automatic Path Generation**: Utility functions automatically create organized paths
+- **Clean Filenames**: Short, descriptive names instead of long concatenated strings
+- **Scalable Design**: Supports unlimited watches and models without directory clutter
+- **Consistent Organization**: All visualization modules use the same organized structure
+
+**Utility Functions**:
+```python
+# Create organized visualization paths
+from src.utils.visualization_utils import get_organized_visualization_path, get_organized_aggregate_path
+
+# Individual watch-model visualization
+viz_path = get_organized_visualization_path(
+    "data/output/visualizations", 
+    "Rolex-Submariner-638", 
+    "xgboost", 
+    "predictions"
+)
+# → data/output/visualizations/Rolex-Submariner-638/xgboost/predictions.png
+
+# Aggregate visualization
+agg_path = get_organized_aggregate_path(
+    "data/output/visualizations", 
+    "performance_comparison"
+)
+# → data/output/visualizations/aggregate/performance_comparison.png
+```
+
+**Reorganization Tool**:
+```bash
+# Reorganize existing flat visualization files into organized structure
+python src/utils/reorganize_visualizations.py --execute
+
+# Preview what would be reorganized (dry run)
+python src/utils/reorganize_visualizations.py
+```
+
+**Directory Structure**:
+```
+data/output/visualizations/
+├── Rolex-Submariner-638/
+│   ├── linear/
+│   │   ├── predictions.png
+│   │   ├── residuals.png
+│   │   ├── importance.png
+│   │   └── complete_forecast.png
+│   ├── xgboost/
+│   │   └── ... (same structure)
+│   └── general/
+│       └── data_split.png
+├── Omega-Speedmaster-30921/
+│   └── ... (same structure)
+└── aggregate/
+    ├── complexity_vs_performance.png
+    ├── performance_comparison.png
+    └── model_rankings.png
+```
+
 ### Web Scraping Capabilities
 - **Cloudflare Bypass**: Stealth browser configuration with anti-detection
 - **Rate Limiting**: Built-in delays (10-20 seconds) between requests
@@ -428,13 +541,19 @@ The enhanced ML pipeline generates comprehensive outputs:
 - `data/output/model_summary.csv` → ML model performance metrics
 
 #### Visualization Outputs
-- `data/output/visualizations/` → Comprehensive visualization directory
-  - `*_predictions.png` → Model prediction plots
-  - `*_residuals.png` → Residual analysis plots
-  - `*_importance.png` → Feature importance plots
-  - `*_decomposition.png` → Seasonal decomposition plots
-  - `*_complete_forecast.png` → Complete forecasting plots
-  - `complexity_vs_performance.png` → Model complexity analysis
+- `data/output/visualizations/` → **Organized visualization directory structure**
+  - `{watch_model}/{ml_model}/` → Individual watch-model visualization directories
+    - `predictions.png` → Model predictions vs actual values
+    - `residuals.png` → Residual analysis and error distribution
+    - `importance.png` → Feature importance rankings
+    - `complete_forecast.png` → Complete time series forecast with context
+    - `decomposition.png` → Seasonal decomposition analysis
+  - `{watch_model}/general/` → Watch-level general plots
+    - `data_split.png` → Train/validation/test split visualization
+  - `aggregate/` → Cross-model analysis and comparison plots
+    - `complexity_vs_performance.png` → Model complexity vs performance trade-offs
+    - `performance_comparison.png` → Overall model performance comparison
+    - `model_rankings.png` → Model ranking across all assets
 
 #### Configuration and Logs
 - **Centralized Logging System**: All components use Loguru-based unified logging
